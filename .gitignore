@@ -1,0 +1,54 @@
+# ==================== Dependencies ====================
+node_modules/
+.pnp
+.pnp.js
+
+# ==================== Next.js ====================
+.next/
+out/
+build/
+dist/
+
+# ==================== Environment Variables ====================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==================== Prisma ====================
+# Keep schema.prisma and migrations, but ignore generated client
+# (it gets regenerated via `prisma generate`)
+
+# ==================== Supabase ====================
+.supabase/
+
+# ==================== Logs ====================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==================== OS ====================
+.DS_Store
+Thumbs.db
+*.pem
+
+# ==================== Editor ====================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==================== Testing ====================
+coverage/
+.nyc_output/
+
+# ==================== Misc ====================
+*.tsbuildinfo
+next-env.d.ts

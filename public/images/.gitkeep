@@ -1,0 +1,4 @@
+# Public images directory
+
+Place static images (logos, icons, backgrounds) here.
+They will be served at /images/* from the Next.js public folder.

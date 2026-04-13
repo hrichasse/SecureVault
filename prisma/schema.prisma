@@ -1,0 +1,240 @@
+// SecureVault AI — Prisma Schema Definitivo
+// NO modificar sin consultar. Última actualización: 2026-04-13.
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  ADMIN
+  REVIEWER
+  USER
+}
+
+enum ConfidentialityLevel {
+  BAJO
+  MEDIO
+  ALTO
+  CRITICO
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentType {
+  ACCESS_DENIED
+  DOCUMENT_LOST
+  DATA_BREACH
+  PERMISSION_EXPIRED
+  INTEGRITY_FAILURE
+  CLASSIFICATION_ERROR
+  OTHER
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  REGISTER
+  UPLOAD_DOCUMENT
+  VIEW_DOCUMENT
+  DELETE_DOCUMENT
+  REQUEST_ACCESS
+  APPROVE_REQUEST
+  REJECT_REQUEST
+  CREATE_INCIDENT
+  UPDATE_INCIDENT
+  CLOSE_INCIDENT
+  CERTIFY_DOCUMENT
+  VERIFY_DOCUMENT
+  GRANT_PERMISSION
+  REVOKE_PERMISSION
+}
+
+// ============================================================
+// MODELOS
+// ============================================================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users      User[]
+  documents  Document[]
+  incidents  Incident[]
+  auditLogs  AuditLog[]
+}
+
+model User {
+  id         String   @id @default(cuid())
+  supabaseId String   @unique // CRÍTICO: vincula con auth.users de Supabase
+  email      String   @unique
+  name       String
+  role       UserRole @default(USER)
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  documents         Document[]           @relation("UploadedBy")
+  permissions       DocumentPermission[]
+  requestsMade      AccessRequest[]      @relation("RequestedBy")
+  requestsReviewed  AccessRequest[]      @relation("ReviewedBy")
+  incidentsCreated  Incident[]           @relation("CreatedBy")
+  incidentsAssigned Incident[]           @relation("AssignedTo")
+  certifications    Certification[]
+  auditLogs         AuditLog[]
+}
+
+model Document {
+  id                   String               @id @default(cuid())
+  name                 String
+  originalName         String
+  mimeType             String
+  sizeBytes            Int
+  sha256Hash           String
+  storagePath          String // path en Supabase Storage
+  confidentialityLevel ConfidentialityLevel @default(BAJO)
+  classificationScore  Float                @default(0)
+  status               DocumentStatus       @default(ACTIVE)
+  description          String?
+  companyId            String
+  company              Company              @relation(fields: [companyId], references: [id])
+  uploadedById         String
+  uploadedBy           User                 @relation("UploadedBy", fields: [uploadedById], references: [id])
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  permissions    DocumentPermission[]
+  accessRequests AccessRequest[]
+  incidents      Incident[]
+  certifications Certification[]
+  auditLogs      AuditLog[]
+}
+
+model DocumentPermission {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  canRead    Boolean  @default(true)
+  canDownload Boolean  @default(false)
+  expiresAt  DateTime?
+  grantedAt  DateTime @default(now())
+  createdFromRequest String? // id del AccessRequest que generó este permiso
+
+  @@unique([documentId, userId])
+}
+
+model AccessRequest {
+  id            String        @id @default(cuid())
+  documentId    String
+  document      Document      @relation(fields: [documentId], references: [id])
+  requestedById String
+  requestedBy   User          @relation("RequestedBy", fields: [requestedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?         @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  status        RequestStatus @default(PENDING)
+  reason        String
+  reviewNote    String?
+  expiresAt     DateTime? // cuándo expira el permiso si se aprueba
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Incident {
+  id           String           @id @default(cuid())
+  title        String
+  description  String
+  type         IncidentType
+  priority     IncidentPriority @default(MEDIUM)
+  status       IncidentStatus   @default(OPEN)
+  documentId   String?
+  document     Document?        @relation(fields: [documentId], references: [id])
+  companyId    String
+  company      Company          @relation(fields: [companyId], references: [id])
+  createdById  String
+  createdBy    User             @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   User?            @relation("AssignedTo", fields: [assignedToId], references: [id])
+  resolution   String?
+  resolvedAt   DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model Certification {
+  id               String   @id @default(cuid())
+  documentId       String
+  document         Document @relation(fields: [documentId], references: [id])
+  certifiedById    String
+  certifiedBy      User     @relation(fields: [certifiedById], references: [id])
+  sha256Hash       String
+  verificationCode String   @unique @default(cuid())
+  certificateUrl   String? // URL del PDF generado (opcional)
+  isValid          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id])
+  companyId  String?
+  company    Company?    @relation(fields: [companyId], references: [id])
+  documentId String?
+  document   Document?   @relation(fields: [documentId], references: [id])
+  incidentId String?
+  incident   Incident?   @relation(fields: [incidentId], references: [id])
+  metadata   Json? // datos adicionales del evento
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([documentId])
+  @@index([userId])
+}

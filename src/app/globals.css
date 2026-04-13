@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   SecureVault AI — Global CSS Variables & Base Styles
+   Design System: Dark #0f172a | Surface #1e293b | Border #334155
+   Accent: #3b82f6 | Success: #10b981 | Danger: #ef4444
+   ============================================================ */
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', system-ui, sans-serif;
+
+    /* Core palette */
+    --color-bg: #0f172a;
+    --color-surface: #1e293b;
+    --color-border: #334155;
+    --color-text: #e2e8f0;
+    --color-muted: #94a3b8;
+    --color-accent: #3b82f6;
+    --color-accent-hover: #2563eb;
+    --color-success: #10b981;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+
+    /* Layout */
+    --sidebar-width: 240px;
+
+    /* Scrollbar */
+    --scrollbar-width: 6px;
+    --scrollbar-thumb: #334155;
+    --scrollbar-track: #0f172a;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-inter);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+@layer components {
+  /* ── Card / Panel ── */
+  .card {
+    @apply bg-[#1e293b] border border-[#334155] rounded-xl;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium
+           transition-all duration-200 focus:outline-none focus-visible:ring-2
+           focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2
+           focus-visible:ring-offset-[#0f172a] disabled:opacity-50
+           disabled:cursor-not-allowed active:scale-95 cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply btn bg-[#3b82f6] hover:bg-[#2563eb] text-white px-4 py-2.5 text-sm;
+  }
+
+  .btn-secondary {
+    @apply btn border border-[#334155] hover:border-[#3b82f6] text-[#94a3b8]
+           hover:text-[#e2e8f0] px-4 py-2.5 text-sm;
+  }
+
+  .btn-ghost {
+    @apply btn text-[#94a3b8] hover:text-[#e2e8f0] hover:bg-[#334155]/50 px-3 py-2 text-sm;
+  }
+
+  .btn-danger {
+    @apply btn bg-[#ef4444]/10 hover:bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30 px-4 py-2.5 text-sm;
+  }
+
+  /* ── Form inputs ── */
+  .input {
+    @apply w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3.5 py-2.5
+           text-[#e2e8f0] placeholder:text-[#475569] text-sm
+           focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]
+           transition-colors duration-200;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-[#cbd5e1] mb-1.5;
+  }
+
+  /* ── Badge / Status ── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-blue   { @apply badge bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/25; }
+  .badge-green  { @apply badge bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/25; }
+  .badge-red    { @apply badge bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/25; }
+  .badge-yellow { @apply badge bg-[#f59e0b]/15 text-[#f59e0b] border border-[#f59e0b]/25; }
+  .badge-slate  { @apply badge bg-[#334155]/60 text-[#94a3b8] border border-[#334155]; }
+
+  /* ── Metric card ── */
+  .metric-card {
+    @apply card p-5 space-y-3 hover:border-[#475569] transition-colors duration-200;
+  }
+
+  /* ── Sidebar nav link ── */
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#94a3b8]
+           hover:text-[#e2e8f0] hover:bg-[#334155]/40 transition-all duration-150
+           font-medium w-full;
+  }
+
+  .nav-link-active {
+    @apply nav-link bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/20;
+  }
+
+  /* ── Section title ── */
+  .page-title {
+    @apply text-xl font-semibold text-[#e2e8f0];
+  }
+
+  .page-subtitle {
+    @apply text-sm text-[#94a3b8] mt-1;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-[#3b82f6] to-[#8b5cf6] bg-clip-text text-transparent;
+  }
+
+  .bg-grid {
+    background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
