@@ -2,6 +2,7 @@
  * Certification Service — lógica para certificar documentos y verificación pública.
  */
 import { prisma } from '@/lib/prisma'
+import { logEvent } from '@/modules/audit/audit.service'
 
 export async function certifyDocument(
   documentId: string,
@@ -68,30 +69,21 @@ export async function verifyCertification(code: string) {
       document: {
         select: {
           name: true,
+          companyId: true,
           company: { select: { name: true } },
         },
       },
     },
   })
 
-  // Registrar auditoría de forma anónima (no falla si no hay certificado válido)
-  // Como verify puede ser público, se corre fuera de una transacción si queremos
+  // Registrar verificación — fire-and-forget via logEvent
   if (cert) {
-    try {
-      await prisma.auditLog.create({
-        data: {
-          action: 'VERIFY_DOCUMENT',
-          documentId: cert.documentId,
-          companyId: cert.document.company?.name ? undefined : undefined, // Idealmente tendríamos el companyId, omitido por simplicidad si no lo extraemos limpio
-          metadata: {
-            success: true,
-            verificationCode: code,
-          },
-        },
-      })
-    } catch (e) {
-      // fire and forget
-    }
+    await logEvent({
+      action: 'VERIFY_DOCUMENT',
+      documentId: cert.documentId,
+      companyId: cert.document.companyId,
+      metadata: { success: true, verificationCode: code },
+    })
   }
 
   return cert

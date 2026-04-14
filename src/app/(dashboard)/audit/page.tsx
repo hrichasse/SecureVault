@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getAuditLogs } from '@/modules/audit/audit.service'
 import type { AuditAction } from '@/types'
 
+
 export const metadata: Metadata = { title: 'Auditoría' }
 
 interface PageProps {
@@ -15,7 +16,7 @@ interface PageProps {
 }
 
 const ACTIONS: AuditAction[] = [
-  'LOGIN', 'LOGOUT', 'REGISTER', 'UPLOAD_DOCUMENT', 'VIEW_DOCUMENT', 
+  'LOGIN', 'LOGOUT', 'REGISTER', 'UPLOAD_DOCUMENT', 'VIEW_DOCUMENT',
   'DELETE_DOCUMENT', 'REQUEST_ACCESS', 'APPROVE_REQUEST', 'REJECT_REQUEST',
   'CREATE_INCIDENT', 'UPDATE_INCIDENT', 'CLOSE_INCIDENT', 'CERTIFY_DOCUMENT',
   'VERIFY_DOCUMENT', 'GRANT_PERMISSION', 'REVOKE_PERMISSION'
@@ -60,13 +61,13 @@ export default async function AuditPage({ searchParams }: PageProps) {
           </h1>
           <p className="page-subtitle">Monitoreo y trazabilidad de todos los eventos del sistema</p>
         </div>
-        <a 
+        <a
           href={exportUrl}
           target="_blank"
           className="btn-secondary whitespace-nowrap text-[#8b5cf6] border-[#8b5cf6]/30 hover:bg-[#8b5cf6]/10"
         >
           <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
           Exportar CSV
         </a>
@@ -79,9 +80,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
             <span className="text-xs font-semibold text-[#64748b] mr-2">Filtrar por Acción:</span>
             <a
               href="/audit"
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
-                !action ? 'bg-[#8b5cf6]/15 border-[#8b5cf6]/30 text-[#8b5cf6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-              }`}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${!action ? 'bg-[#8b5cf6]/15 border-[#8b5cf6]/30 text-[#8b5cf6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
+                }`}
             >
               Todos
             </a>
@@ -89,9 +89,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
               <a
                 key={a}
                 href={`/audit?action=${a}`}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
-                  action === a ? 'bg-[#8b5cf6]/15 border-[#8b5cf6]/30 text-[#8b5cf6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-                }`}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${action === a ? 'bg-[#8b5cf6]/15 border-[#8b5cf6]/30 text-[#8b5cf6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
+                  }`}
               >
                 {a}
               </a>
@@ -121,12 +120,12 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                       <div className="w-6 h-6 rounded-full bg-[#3b82f6]/20 border border-[#3b82f6]/30 flex items-center justify-center flex-shrink-0">
-                         <span className="text-[10px] text-[#3b82f6] font-bold">
-                           {log.user?.name ? log.user.name.charAt(0).toUpperCase() : 'S'}
-                         </span>
-                       </div>
-                       <span className="text-xs text-[#e2e8f0]">{log.user?.name || 'Sistema/Anónimo'}</span>
+                      <div className="w-6 h-6 rounded-full bg-[#3b82f6]/20 border border-[#3b82f6]/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-[10px] text-[#3b82f6] font-bold">
+                          {log.user?.name ? log.user.name.charAt(0).toUpperCase() : 'S'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#e2e8f0]">{log.user?.name || 'Sistema/Anónimo'}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
@@ -156,7 +155,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="p-4 border-t border-[#334155]/60 bg-[#1e293b]/50 flex items-center justify-between">

@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { updateUserNameAction } from './actions'
 
-export const metadata: Metadata = { title: 'Configuración' }
+export const metadata: Metadata = { title: 'Configuración | SecureVault AI' }
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -12,9 +13,7 @@ export default async function SettingsPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { supabaseId: authUser.id },
-    include: {
-      company: true,
-    },
+    include: { company: true },
   })
   if (!dbUser) redirect('/login')
 
@@ -26,7 +25,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* User Info */}
+        {/* User Info — editable */}
         <div className="card p-6 space-y-6">
           <h2 className="text-lg font-bold text-[#e2e8f0] pb-4 border-b border-[#334155]/60 flex items-center gap-2">
             <svg className="w-5 h-5 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -34,27 +33,53 @@ export default async function SettingsPage() {
             </svg>
             Perfil Personal
           </h2>
-          
-          <div className="space-y-4">
+
+          <form action={updateUserNameAction} className="space-y-4">
+            {/* Name — editable */}
             <div>
-              <label className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">Nombre Completo</label>
-              <p className="text-sm text-[#e2e8f0] bg-[#1e293b]/50 px-3 py-2 rounded border border-[#334155]/60">
-                {dbUser.name}
-              </p>
+              <label htmlFor="name" className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">
+                Nombre Completo
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                defaultValue={dbUser.name}
+                required
+                minLength={2}
+                maxLength={100}
+                className="w-full px-3 py-2 rounded border border-[#334155] bg-[#0f172a] text-sm text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-[#3b82f6] transition-colors"
+              />
             </div>
+
+            {/* Email — read-only */}
             <div>
-              <label className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">Correo Electrónico</label>
-              <p className="text-sm text-[#e2e8f0] bg-[#1e293b]/50 px-3 py-2 rounded border border-[#334155]/60 text-[#94a3b8]">
+              <label className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">
+                Correo Electrónico
+              </label>
+              <p className="text-sm text-[#94a3b8] bg-[#1e293b]/50 px-3 py-2 rounded border border-[#334155]/60">
                 {dbUser.email}
               </p>
+              <p className="text-[11px] text-[#475569] mt-1">El email no puede modificarse desde aquí.</p>
             </div>
+
+            {/* Role */}
             <div>
-              <label className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">Rol en el sistema</label>
+              <label className="block text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-1">
+                Rol en el sistema
+              </label>
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#8b5cf6]/20 text-[#8b5cf6] border border-[#8b5cf6]/30">
                 {dbUser.role}
               </span>
             </div>
-          </div>
+
+            <button
+              type="submit"
+              className="w-full h-9 px-4 rounded-lg bg-[#3b82f6] text-white text-sm font-semibold hover:bg-[#2563eb] transition-colors mt-2"
+            >
+              Guardar cambios
+            </button>
+          </form>
         </div>
 
         {/* Company Info */}
@@ -92,7 +117,7 @@ export default async function SettingsPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
               </svg>
-              Para modificar estos datos por favor contacta al administrador principal en info@securevault.ai
+              Para modificar datos de la empresa contáctate con soporte en info@securevault.ai
             </div>
           </div>
         </div>

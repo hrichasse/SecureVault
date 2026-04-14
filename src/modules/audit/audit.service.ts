@@ -4,6 +4,31 @@
 import { prisma } from '@/lib/prisma'
 import type { AuditAction } from '@/types'
 
+// ── logEvent (función central de auditoría) ────────────────
+
+export interface LogEventInput {
+  action: AuditAction
+  userId?: string
+  companyId?: string
+  documentId?: string
+  incidentId?: string
+  metadata?: Record<string, unknown>
+  ipAddress?: string
+  userAgent?: string
+}
+
+/**
+ * Registra un evento de auditoría en la base de datos.
+ * Fire-and-forget: nunca lanza error para no romper el flujo de negocio.
+ */
+export async function logEvent(data: LogEventInput): Promise<void> {
+  try {
+    await prisma.auditLog.create({ data })
+  } catch (err) {
+    console.error('[Audit] Failed to log event:', data.action, err)
+  }
+}
+
 export interface GetAuditLogsParams {
   companyId: string
   page?: number

@@ -121,26 +121,9 @@ export interface Certification {
   isValid: boolean
 }
 
-// ==================== Audit ====================
+import type { AuditAction } from '@prisma/client'
+export type { AuditAction }
 
-export type AuditAction =
-  | 'DOCUMENT_UPLOAD'
-  | 'DOCUMENT_VIEW'
-  | 'DOCUMENT_DOWNLOAD'
-  | 'DOCUMENT_DELETE'
-  | 'DOCUMENT_CLASSIFY'
-  | 'ACCESS_REQUEST_CREATE'
-  | 'ACCESS_REQUEST_APPROVE'
-  | 'ACCESS_REQUEST_REJECT'
-  | 'INCIDENT_CREATE'
-  | 'INCIDENT_RESOLVE'
-  | 'CERTIFICATION_ISSUE'
-  | 'CERTIFICATION_VERIFY'
-  | 'USER_LOGIN'
-  | 'USER_LOGOUT'
-  | 'USER_REGISTER'
-  | 'PERMISSION_GRANT'
-  | 'PERMISSION_REVOKE'
 
 export interface AuditEntry {
   id: string

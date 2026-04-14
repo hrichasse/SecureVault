@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { logEvent } from '@/modules/audit/audit.service'
 
 // ── Schemas de validación ─────────────────────────────────────
 
@@ -56,6 +57,15 @@ export async function loginAction(
   if (error) {
     // Mensaje genérico — no revelar si es email o password
     return { error: 'Credenciales incorrectas. Por favor intenta de nuevo.' }
+  }
+
+  // Registrar login en auditoría
+  const dbUser = await prisma.user.findUnique({
+    where: { email: parsed.data.email },
+    select: { id: true, companyId: true },
+  })
+  if (dbUser) {
+    await logEvent({ action: 'LOGIN', userId: dbUser.id, companyId: dbUser.companyId })
   }
 
   redirect('/dashboard')
@@ -143,6 +153,12 @@ export async function registerAction(
     }
   }
 
+  // Registrar registro en auditoría
+  const newUser = await prisma.user.findUnique({ where: { email }, select: { id: true, companyId: true } })
+  if (newUser) {
+    await logEvent({ action: 'REGISTER', userId: newUser.id, companyId: newUser.companyId, metadata: { name, companyName } })
+  }
+
   redirect('/dashboard')
 }
 
@@ -150,6 +166,18 @@ export async function registerAction(
 
 export async function logoutAction(): Promise<void> {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    const dbUser = await prisma.user.findUnique({
+      where: { supabaseId: user.id },
+      select: { id: true, companyId: true },
+    })
+    if (dbUser) {
+      await logEvent({ action: 'LOGOUT', userId: dbUser.id, companyId: dbUser.companyId })
+    }
+  }
+
   await supabase.auth.signOut()
   redirect('/login')
 }
