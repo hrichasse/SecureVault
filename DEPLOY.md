@@ -5,9 +5,11 @@ Nunca usaste Azure · Sigue cada paso en orden · ~30 minutos
 Guía visual completa desde cero. Cada paso tiene exactamente qué hacer y dónde hacer clic.
 
 ### AZ.1 Crear cuenta en Azure (si no tienes)
-Ir a portal.azure.com → Crear cuenta gratuita. Azure da $200 USD de crédito por 30 días y servicios gratis por 12 meses. Para este proyecto el plan F1 (gratuito) es suficiente.
+Ir a portal.azure.com → Crear cuenta gratuita. Azure da $200 USD de crédito por 30 días y servicios gratis por 12 meses. Para comenzar este proyecto, el plan F1 (gratuito) es suficiente.
 
 > ✓ Si ya tienes cuenta con el correo de DuocUC, úsala directamente — puede tener créditos universitarios activos.
+>
+> ⚠ Importante: F1 sirve bien para pruebas, configuración inicial y validación del deploy. Si después quieres dominio propio, más estabilidad o un uso más serio en producción, probablemente vas a subir a B1.
 
 ---
 
@@ -31,6 +33,8 @@ En el portal de Azure, sigue exactamente estos pasos:
 4. Click en **Review + create** → **Create**. Esperar ~2 minutos hasta que diga "Deployment complete".
 
 > ✓ Click en "Go to resource" para ir a tu App Service recién creado.
+>
+> 💡 Recomendación práctica: crea primero el App Service en F1. Más adelante, cuando necesites dominio custom o una publicación más estable, puedes cambiar el plan a B1 desde **Scale up (App Service plan)** sin perder la app.
 
 ---
 
@@ -73,7 +77,9 @@ Dentro de tu App Service, en el menú lateral izquierdo:
 6. **Branch:** main
 7. Click en **Save**
 
-Azure crea automáticamente un archivo `.github/workflows/azure.yml` en tu repositorio y hace el primer deploy. Puedes ver el progreso en la pestaña Logs.
+Azure puede crear o configurar automáticamente el workflow de GitHub y lanzar el primer deploy. Puedes ver el progreso en la pestaña Logs.
+
+> ⚠ Cuando termines este paso, revisa tu repositorio y confirma que efectivamente exista el archivo `.github/workflows/azure.yml` o el workflow equivalente. No conviene asumir que siempre quedó creado correctamente sin verificarlo.
 
 > 💡 El primer deploy tarda 5–10 minutos porque instala dependencias y compila Next.js. Los deploys siguientes son más rápidos.
 
@@ -95,6 +101,8 @@ npx prisma migrate deploy && npm start
 4. Click en **Save**. Esto le dice a Azure: primero aplica las migraciones de la BD, luego arranca la app.
 
 > ⚠ Usar `migrate deploy` nunca `migrate dev`. Si usas `dev` en producción, Prisma falla con error de permisos.
+>
+> ⚠ Después del primer deploy, revisa **Log stream**. Si Azure no encuentra Prisma en el arranque o falla el comando inicial, lo verás inmediatamente ahí. El comando es correcto conceptualmente, pero el primer inicio debe validarse con logs.
 
 ---
 
@@ -109,6 +117,8 @@ Supabase bloquea requests de dominios no autorizados. Debes agregar tu URL de Az
 5. Click en **Save**
 
 > ✓ Ahora Supabase Auth acepta logins desde tu dominio de Azure.
+>
+> 💡 Si después cambias a un dominio propio como `https://www.securevault.com`, tendrás que volver aquí y reemplazar la URL de Azure por tu dominio final, además de agregar sus redirects correspondientes.
 
 ---
 
@@ -134,5 +144,5 @@ Abre tu navegador y prueba en este orden:
 - **Application Error / 500** → ir a Log stream. Casi siempre es una variable de entorno faltante o mal copiada. Revisar que las 8 variables estén en Configuration → Application settings.
 - **La app carga pero el login falla** → revisar AZ.6. Supabase no tiene la URL de Azure en los dominios autorizados.
 - **"PrismaClientInitializationError"** → `DATABASE_URL` incorrecta en Azure. Copiarla de nuevo desde Supabase → Settings → Database → asegurarse de incluir `?pgbouncer=true` al final.
-- **El deploy falla en GitHub Actions** → ir al repositorio en GitHub → pestaña Actions → ver el log del workflow. Buscar la línea roja. Frecuentemente es que falta el secret de Azure en GitHub.
+- **El deploy falla en GitHub Actions** → ir al repositorio en GitHub → pestaña Actions → ver el log del workflow. Buscar la línea roja. Primero confirma que el workflow realmente existe en `.github/workflows/` y luego revisa si falta algún secret o permiso de Azure/GitHub.
 - **Si necesitas redesployar manualmente:** App Service → Deployment Center → click en Sync. Esto fuerza un nuevo deploy sin necesidad de hacer git push.
