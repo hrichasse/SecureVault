@@ -1,160 +1,182 @@
-import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { listDocuments } from '@/modules/documents/document.repository'
-import { DocumentCard } from '@/components/documents/DocumentCard'
-import { DocumentUpload } from '@/components/documents/DocumentUpload'
-import { ConfidentialityBadge } from '@/components/documents/ConfidentialityBadge'
-import type { ConfidentialityLevel, DocumentStatus } from '@/types'
+'use client'
 
-export const metadata: Metadata = { title: 'Documentos' }
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { FileText, Upload, Search, Eye } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { motion } from 'framer-motion'
 
-interface PageProps {
-  searchParams: {
-    level?: string
-    status?: string
-    page?: string
-  }
+interface Document {
+  id: string
+  name: string
+  confidentialityLevel: string
+  createdAt: string
+  status: string
+  sizeBytes: number
 }
 
-const LEVELS: ConfidentialityLevel[] = ['BAJO', 'MEDIO', 'ALTO', 'CRITICO']
+const levelMap: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
+  BAJO: 'low', MEDIO: 'medium', ALTO: 'high', CRITICO: 'critical',
+}
+const levelLabel: Record<string, string> = {
+  BAJO: 'BAJO', MEDIO: 'MEDIO', ALTO: 'ALTO', CRITICO: 'CRÍTICO',
+}
+const filters = ['Todos', 'Bajo', 'Medio', 'Alto', 'Crítico']
 
-export default async function DocumentsPage({ searchParams }: PageProps) {
-  // Auth check
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-    select: { id: true, companyId: true, name: true },
+export default function DocumentsPage() {
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState('Todos')
+  const [search, setSearch] = useState('')
+  const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/documents')
+      .then(res => res.json())
+      .then(data => setDocuments(data.data?.documents || []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = documents.filter(d => {
+    const matchesFilter = activeFilter === 'Todos' || d.confidentialityLevel.toLowerCase() === activeFilter.toLowerCase()
+    const matchesSearch = !search || d.name.toLowerCase().includes(search.toLowerCase())
+    return matchesFilter && matchesSearch
   })
-  if (!dbUser) redirect('/login')
 
-  const level = (searchParams.level as ConfidentialityLevel) || undefined
-  const status = (searchParams.status as DocumentStatus) || undefined
-  const page = parseInt(searchParams.page ?? '1', 10)
-
-  const { documents, total, totalPages, hasNext, hasPrev } = await listDocuments({
-    companyId: dbUser.companyId,
-    confidentialityLevel: level,
-    status,
-    page,
-    limit: 12,
-  })
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><h1 className="text-2xl font-bold text-foreground">Documentos</h1></div>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-card rounded-xl border border-border animate-pulse" />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="px-8 py-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="page-title text-2xl">Documentos</h1>
-          <p className="page-subtitle">
-            {total} documento{total !== 1 ? 's' : ''} en tu empresa
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">Documentos</h1>
+          <p className="text-sm text-muted-foreground">Gestión de documentos corporativos</p>
+        </div>
+        <Button className="gradient-primary text-primary-foreground" onClick={() => router.push('/documents/upload')}>
+          <Upload className="h-4 w-4 mr-2" />
+          Subir documento
+        </Button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar documentos..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {filters.map(f => (
+            <Button
+              key={f}
+              variant={activeFilter === f ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveFilter(f)}
+              className={activeFilter === f ? 'gradient-primary text-primary-foreground' : ''}
+            >
+              {f}
+            </Button>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* ── Upload panel (izquierda) ── */}
-        <div className="lg:col-span-1">
-          <div className="card p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-[#e2e8f0] flex items-center gap-2">
-              <svg className="w-4 h-4 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              Subir documento
-            </h2>
-            <DocumentUpload />
-          </div>
-        </div>
-
-        {/* ── Document list (derecha) ── */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[#64748b] font-medium">Filtrar:</span>
-            <a
-              href="/documents"
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                !level ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-              }`}
-            >
-              Todos
-            </a>
-            {LEVELS.map((l) => (
-              <a
-                key={l}
-                href={`/documents?level=${l}`}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  level === l ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-                }`}
+      {/* Desktop table */}
+      <div className="hidden md:block bg-card rounded-xl border border-border shadow-card overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre</th>
+              <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Confidencialidad</th>
+              <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fecha</th>
+              <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estado</th>
+              <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tamaño</th>
+              <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((doc, i) => (
+              <motion.tr
+                key={doc.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.05 }}
+                className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                onClick={() => router.push(`/documents/${doc.id}`)}
               >
-                {l}
-              </a>
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-card-foreground">{doc.name}</span>
+                  </div>
+                </td>
+                <td className="py-3 px-4">
+                  <StatusBadge variant={levelMap[doc.confidentialityLevel] || 'neutral'}>
+                    {levelLabel[doc.confidentialityLevel] || doc.confidentialityLevel}
+                  </StatusBadge>
+                </td>
+                <td className="py-3 px-4 text-sm text-muted-foreground">
+                  {new Date(doc.createdAt).toLocaleDateString('es-CL')}
+                </td>
+                <td className="py-3 px-4">
+                  <StatusBadge variant={doc.status === 'ACTIVE' ? 'success' : doc.status === 'ARCHIVED' ? 'warning' : 'neutral'}>
+                    {doc.status === 'ACTIVE' ? 'Activo' : doc.status === 'ARCHIVED' ? 'Archivado' : doc.status}
+                  </StatusBadge>
+                </td>
+                <td className="py-3 px-4 text-sm text-muted-foreground">{formatSize(doc.sizeBytes)}</td>
+                <td className="py-3 px-4 text-right">
+                  <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                </td>
+              </motion.tr>
             ))}
-          </div>
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">No se encontraron documentos</div>
+        )}
+      </div>
 
-          {/* Document grid */}
-          {documents.length === 0 ? (
-            <div className="card p-12 flex flex-col items-center justify-center text-center">
-              <svg className="w-12 h-12 text-[#334155] mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-              <p className="text-[#64748b] text-sm font-medium">
-                {level ? `No hay documentos con nivel ${level}` : 'No hay documentos todavía'}
-              </p>
-              <p className="text-[#475569] text-xs mt-1">
-                Sube tu primer documento usando el panel de la izquierda
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {documents.map((doc) => (
-                <DocumentCard
-                  key={doc.id}
-                  id={doc.id}
-                  name={doc.name}
-                  originalName={doc.originalName}
-                  confidentialityLevel={doc.confidentialityLevel}
-                  sizeBytes={doc.sizeBytes}
-                  mimeType={doc.mimeType}
-                  createdAt={doc.createdAt}
-                  uploadedBy={doc.uploadedBy}
-                  description={doc.description}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-[#64748b]">
-                Página {page} de {totalPages} · {total} documentos
-              </p>
-              <div className="flex gap-2">
-                {hasPrev && (
-                  <a
-                    href={`/documents?page=${page - 1}${level ? `&level=${level}` : ''}`}
-                    className="btn-secondary text-xs px-3 py-1.5"
-                  >
-                    ← Anterior
-                  </a>
-                )}
-                {hasNext && (
-                  <a
-                    href={`/documents?page=${page + 1}${level ? `&level=${level}` : ''}`}
-                    className="btn-secondary text-xs px-3 py-1.5"
-                  >
-                    Siguiente →
-                  </a>
-                )}
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {filtered.map(doc => (
+          <div
+            key={doc.id}
+            className="bg-card rounded-xl border border-border p-4 shadow-card cursor-pointer hover:shadow-elevated transition-shadow"
+            onClick={() => router.push(`/documents/${doc.id}`)}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-card-foreground">{doc.name}</span>
               </div>
+              <StatusBadge variant={levelMap[doc.confidentialityLevel] || 'neutral'}>
+                {levelLabel[doc.confidentialityLevel] || doc.confidentialityLevel}
+              </StatusBadge>
             </div>
-          )}
-        </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>{new Date(doc.createdAt).toLocaleDateString('es-CL')}</span>
+              <span>{formatSize(doc.sizeBytes)}</span>
+              <StatusBadge variant={doc.status === 'ACTIVE' ? 'success' : 'warning'}>
+                {doc.status === 'ACTIVE' ? 'Activo' : doc.status}
+              </StatusBadge>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

@@ -1,123 +1,128 @@
-import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { getIncidents } from '@/modules/incidents/incident.service'
-import { IncidentList } from '@/components/incidents/IncidentList'
-import { IncidentForm } from '@/components/incidents/IncidentForm'
-import type { IncidentStatus, IncidentPriority, IncidentType } from '@/types'
+'use client'
 
-export const metadata: Metadata = { title: 'Incidentes' }
+import { useEffect, useState } from 'react'
+import { AlertTriangle, User, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { motion } from 'framer-motion'
 
-interface PageProps {
-  searchParams: {
-    status?: string
-    priority?: string
-  }
+interface Incident {
+  id: string
+  title: string
+  status: string
+  priority: string
+  createdBy: { name: string }
+  assignedTo?: { name: string }
+  createdAt: string
 }
 
-const STATUSES: IncidentStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
-const PRIORITIES: IncidentPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+const statusFilters = ['Todos', 'Abierto', 'En progreso', 'Cerrado']
+const statusDbMap: Record<string, string> = { 'Abierto': 'OPEN', 'En progreso': 'IN_PROGRESS', 'Cerrado': 'CLOSED' }
+const statusLabel: Record<string, string> = { OPEN: 'Abierto', IN_PROGRESS: 'En progreso', RESOLVED: 'Resuelto', CLOSED: 'Cerrado' }
+const statusVariant: Record<string, 'danger' | 'warning' | 'success' | 'info'> = {
+  OPEN: 'danger', IN_PROGRESS: 'warning', RESOLVED: 'success', CLOSED: 'success',
+}
+const priorityVariant: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+  CRITICAL: 'critical', HIGH: 'high', MEDIUM: 'medium', LOW: 'low',
+}
 
-export default async function IncidentsPage({ searchParams }: PageProps) {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+export default function IncidentsPage() {
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState('Todos')
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-    select: { id: true, companyId: true, role: true },
-  })
-  if (!dbUser) redirect('/login')
+  useEffect(() => {
+    fetch('/api/incidents')
+      .then(res => res.json())
+      .then(data => setIncidents(data.data || []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
-  const status = (searchParams.status as IncidentStatus) || undefined
-  const priority = (searchParams.priority as IncidentPriority) || undefined
+  const filtered = activeFilter === 'Todos'
+    ? incidents
+    : incidents.filter(i => i.status === statusDbMap[activeFilter])
 
-  const incidents = await getIncidents({
-    companyId: dbUser.companyId,
-    status,
-    priority,
-  })
-
-  return (
-    <div className="px-8 py-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="page-title text-2xl">Incidentes</h1>
-          <p className="page-subtitle">Gestión de anomalías interacciones y reportes de seguridad</p>
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><h1 className="text-2xl font-bold text-foreground">Incidentes</h1></div>
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-card rounded-xl border border-border animate-pulse" />)}
         </div>
       </div>
+    )
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* ── Add Incident Panel (Izquierda) ── */}
-        <div className="lg:col-span-1">
-          <div className="card p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-[#e2e8f0] flex items-center gap-2 mb-2">
-              <svg className="w-4 h-4 text-[#ef4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Reportar Incidente
-            </h2>
-            <IncidentForm />
-          </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Incidentes</h1>
+          <p className="text-sm text-muted-foreground">Sistema de gestión de incidentes documentales</p>
         </div>
+        <Button className="gradient-primary text-primary-foreground">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          Reportar incidente
+        </Button>
+      </div>
 
-        {/* ── Incidents List (Derecha) ── */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Fltros */}
-          <div className="flex flex-col gap-3">
-            {/* Filtros Status */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-[#64748b] font-medium min-w-[60px]">Estado:</span>
-              <a
-                href={`/incidents${priority ? `?priority=${priority}` : ''}`}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  !status ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b]'
-                }`}
-              >
-                Todos
-              </a>
-              {STATUSES.map((s) => (
-                <a
-                  key={s}
-                  href={`/incidents?status=${s}${priority ? `&priority=${priority}` : ''}`}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    status === s ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-                  }`}
-                >
-                  {s}
-                </a>
-              ))}
-            </div>
+      <div className="flex gap-2 flex-wrap">
+        {statusFilters.map(f => (
+          <Button
+            key={f}
+            variant={activeFilter === f ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveFilter(f)}
+            className={activeFilter === f ? 'gradient-primary text-primary-foreground' : ''}
+          >
+            {f}
+          </Button>
+        ))}
+      </div>
 
-            {/* Filtros Priority */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-[#64748b] font-medium min-w-[60px]">Prioridad:</span>
-              <a
-                href={`/incidents${status ? `?status=${status}` : ''}`}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  !priority ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b]'
-                }`}
-              >
-                Todas
-              </a>
-              {PRIORITIES.map((p) => (
-                <a
-                  key={p}
-                  href={`/incidents?priority=${p}${status ? `&status=${status}` : ''}`}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    priority === p ? 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#3b82f6]' : 'border-[#334155] text-[#64748b] hover:border-[#475569]'
-                  }`}
-                >
-                  {p}
-                </a>
-              ))}
+      <div className="space-y-3">
+        {filtered.map((inc, i) => (
+          <motion.div
+            key={inc.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="bg-card rounded-xl border border-border p-5 shadow-card hover:shadow-elevated transition-shadow"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge variant={priorityVariant[inc.priority] || 'medium'}>
+                    {inc.priority}
+                  </StatusBadge>
+                  <StatusBadge variant={statusVariant[inc.status] || 'neutral'}>
+                    {statusLabel[inc.status] || inc.status}
+                  </StatusBadge>
+                </div>
+                <h3 className="font-semibold text-card-foreground">{inc.title}</h3>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    {inc.assignedTo?.name || inc.createdBy.name}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(inc.createdAt).toLocaleDateString('es-CL')}
+                  </span>
+                </div>
+              </div>
+              <span className="text-sm font-mono text-muted-foreground">
+                INC-{inc.id.slice(-4).toUpperCase()}
+              </span>
             </div>
+          </motion.div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="bg-card rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">
+            No hay incidentes registrados.
           </div>
-
-          <IncidentList incidents={incidents} />
-        </div>
+        )}
       </div>
     </div>
   )

@@ -5,4 +5,4 @@
  * Business logic will be implemented in the next prompt.
  */
 
-export type { CertificationMeta } from '@/types'
+export type { Certification as CertificationMeta } from '@/types'

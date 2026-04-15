@@ -3,9 +3,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { loginAction } from '@/modules/auth/actions'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /**
- * LoginForm — formulario de inicio de sesión.
+ * LoginForm — formulario de inicio de sesión con diseño Lovable.
  *
  * Llama al Server Action loginAction() directamente.
  * En éxito: Next.js navega automáticamente a /dashboard.
@@ -14,6 +18,7 @@ import { loginAction } from '@/modules/auth/actions'
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -36,108 +41,89 @@ export function LoginForm() {
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-2.5 bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444] text-sm px-4 py-3 rounded-lg"
+          className="flex items-start gap-2.5 bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg"
         >
-          <svg
-            className="w-4 h-4 mt-0.5 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-            />
-          </svg>
           <span>{error}</span>
         </div>
       )}
 
       {/* Email */}
-      <div>
-        <label htmlFor="login-email" className="label">
-          Correo electrónico
-        </label>
-        <input
-          id="login-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          placeholder="tu@empresa.com"
-          className="input"
-          disabled={loading}
-        />
+      <div className="space-y-2">
+        <Label htmlFor="login-email" className="text-sm font-medium text-foreground">Correo electrónico</Label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="login-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="usuario@empresa.com"
+            className="pl-10"
+            disabled={loading}
+          />
+        </div>
       </div>
 
       {/* Password */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label htmlFor="login-password" className="label mb-0">
-            Contraseña
-          </label>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="login-password" className="text-sm font-medium text-foreground">Contraseña</Label>
           <a
             href="#"
-            className="text-xs text-[#3b82f6] hover:text-[#2563eb] transition-colors"
+            className="text-xs text-primary hover:text-primary/80 transition-colors"
           >
             ¿Olvidaste tu contraseña?
           </a>
         </div>
-        <input
-          id="login-password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          placeholder="••••••••"
-          className="input"
-          disabled={loading}
-        />
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="login-password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            required
+            placeholder="••••••••"
+            className="pl-10 pr-10"
+            disabled={loading}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Submit */}
-      <button
+      <Button
         id="btn-login-submit"
         type="submit"
         disabled={loading}
-        className="btn-primary w-full py-2.5 text-sm font-semibold disabled:opacity-60"
+        className="w-full h-11 gradient-primary text-primary-foreground font-semibold"
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <svg
-              className="w-4 h-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
             Iniciando sesión...
           </span>
         ) : (
-          'Iniciar sesión'
+          'Acceder a SecureVault'
         )}
-      </button>
+      </Button>
 
       {/* Register link */}
-      <p className="text-center text-sm text-[#94a3b8]">
+      <p className="text-center text-sm text-muted-foreground">
         ¿No tienes cuenta?{' '}
         <Link
           href="/register"
-          className="text-[#3b82f6] hover:text-[#2563eb] font-medium transition-colors"
+          className="text-primary hover:text-primary/80 font-medium transition-colors"
         >
           Regístrate gratis
         </Link>

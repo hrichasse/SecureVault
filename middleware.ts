@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
           // Propagar cookies al request (para otros middlewares)
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
@@ -71,5 +71,6 @@ export const config = {
     '/certifications/:path*',
     '/audit/:path*',
     '/settings/:path*',
+    '/admin/:path*',
   ],
 }

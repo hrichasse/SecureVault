@@ -1,185 +1,234 @@
-import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { getDashboardMetrics, getRecentActivity } from '@/modules/audit/audit.service'
-import type { DashboardMetrics } from '@/types'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Dashboard',
+import { useEffect, useState } from 'react'
+import { FileText, Send, AlertTriangle, ShieldCheck, Clock, TrendingUp } from 'lucide-react'
+import { StatCard } from '@/components/ui/stat-card'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { motion } from 'framer-motion'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+
+interface DashboardMetrics {
+  totalDocuments: number
+  pendingRequests: number
+  activeIncidents: number
+  totalCertifications: number
 }
 
-interface MetricCardProps {
-  title: string
-  value: number
-  description: string
-  icon: React.ReactNode
-  accent: string
-  bg: string
+interface ActivityItem {
+  action: string
+  detail: string
+  time: string
+  type: 'info' | 'success' | 'danger' | 'warning'
 }
 
-function MetricCard({ title, value, description, icon, accent, bg }: MetricCardProps) {
-  return (
-    <div className="metric-card group">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-[#94a3b8]">{title}</p>
-          <p className={`text-3xl font-bold mt-1.5 ${accent}`}>
-            {value.toLocaleString('es-ES')}
-          </p>
-        </div>
-        <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
-          {icon}
+const container = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+}
+
+// Mapeo de AuditAction a tipo de badge
+const actionTypeMap: Record<string, 'info' | 'success' | 'danger' | 'warning'> = {
+  LOGIN: 'info', LOGOUT: 'info', REGISTER: 'info',
+  UPLOAD_DOCUMENT: 'success', VIEW_DOCUMENT: 'info',
+  DELETE_DOCUMENT: 'danger',
+  REQUEST_ACCESS: 'warning',
+  APPROVE_REQUEST: 'success', REJECT_REQUEST: 'danger',
+  CREATE_INCIDENT: 'danger', UPDATE_INCIDENT: 'warning', CLOSE_INCIDENT: 'success',
+  CERTIFY_DOCUMENT: 'success', VERIFY_DOCUMENT: 'info',
+  GRANT_PERMISSION: 'success', REVOKE_PERMISSION: 'warning',
+}
+
+const actionLabelMap: Record<string, string> = {
+  LOGIN: 'Inicio de sesión',
+  LOGOUT: 'Cierre de sesión',
+  REGISTER: 'Registro',
+  UPLOAD_DOCUMENT: 'Documento subido',
+  VIEW_DOCUMENT: 'Documento visto',
+  DELETE_DOCUMENT: 'Documento eliminado',
+  REQUEST_ACCESS: 'Solicitud creada',
+  APPROVE_REQUEST: 'Solicitud aprobada',
+  REJECT_REQUEST: 'Solicitud rechazada',
+  CREATE_INCIDENT: 'Incidente reportado',
+  UPDATE_INCIDENT: 'Incidente actualizado',
+  CLOSE_INCIDENT: 'Incidente cerrado',
+  CERTIFY_DOCUMENT: 'Certificación emitida',
+  VERIFY_DOCUMENT: 'Verificación realizada',
+  GRANT_PERMISSION: 'Permiso otorgado',
+  REVOKE_PERMISSION: 'Permiso revocado',
+}
+
+export default function DashboardPage() {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [chartData, setChartData] = useState<Array<{ mes: string; documentos: number; solicitudes: number }>>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Fetch metrics
+        const [docsRes, reqRes, incRes, certRes, auditRes] = await Promise.all([
+          fetch('/api/documents?limit=1'),
+          fetch('/api/access-requests?status=PENDING&limit=1'),
+          fetch('/api/incidents?status=OPEN&limit=1'),
+          fetch('/api/certifications?limit=1'),
+          fetch('/api/audit?limit=5'),
+        ])
+
+        const docsData = await docsRes.json()
+        const reqData = await reqRes.json()
+        const incData = await incRes.json()
+        const certData = await certRes.json()
+        const auditData = await auditRes.json()
+
+        setMetrics({
+          totalDocuments: docsData.pagination?.total ?? docsData.data?.length ?? 0,
+          pendingRequests: reqData.pagination?.total ?? reqData.data?.length ?? 0,
+          activeIncidents: incData.pagination?.total ?? incData.data?.length ?? 0,
+          totalCertifications: certData.pagination?.total ?? certData.data?.length ?? 0,
+        })
+
+        // Parse audit logs as recent activity
+        if (auditData.data) {
+          const mapped: ActivityItem[] = auditData.data.map((log: Record<string, unknown>) => {
+            const action = log.action as string
+            return {
+              action: actionLabelMap[action] || action,
+              detail: (log.metadata as Record<string, string>)?.documentName || (log.user as Record<string, string>)?.email || '',
+              time: new Date(log.createdAt as string).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+              type: actionTypeMap[action] || 'info',
+            }
+          })
+          setActivity(mapped)
+        }
+
+        // Generate chart data (mock monthly — real would need an aggregation endpoint)
+        setChartData([
+          { mes: 'Ene', documentos: Math.floor(Math.random() * 50) + 20, solicitudes: Math.floor(Math.random() * 20) + 5 },
+          { mes: 'Feb', documentos: Math.floor(Math.random() * 50) + 30, solicitudes: Math.floor(Math.random() * 20) + 8 },
+          { mes: 'Mar', documentos: Math.floor(Math.random() * 50) + 40, solicitudes: Math.floor(Math.random() * 20) + 10 },
+          { mes: 'Abr', documentos: Math.floor(Math.random() * 50) + 50, solicitudes: Math.floor(Math.random() * 20) + 12 },
+          { mes: 'May', documentos: Math.floor(Math.random() * 50) + 60, solicitudes: Math.floor(Math.random() * 20) + 15 },
+          { mes: 'Jun', documentos: docsData.pagination?.total ?? 0, solicitudes: reqData.pagination?.total ?? 0 },
+        ])
+      } catch (err) {
+        console.error('Error loading dashboard:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><h1 className="text-2xl font-bold text-foreground">Dashboard</h1></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-28 bg-card rounded-xl border border-border animate-pulse" />
+          ))}
         </div>
       </div>
-      <p className="text-xs text-[#64748b] pt-1">{description}</p>
-    </div>
-  )
-}
+    )
+  }
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
-
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-    select: { id: true, companyId: true },
-  })
-  if (!dbUser) redirect('/login')
-
-  const metrics = await getDashboardMetrics(dbUser.companyId)
-  const recentActivity = await getRecentActivity(dbUser.companyId, 5)
   return (
-    <div className="px-8 py-8 space-y-8 max-w-7xl mx-auto">
-      {/* Page header */}
+    <div className="space-y-6">
       <div>
-        <h1 className="page-title text-2xl">Dashboard</h1>
-        <p className="page-subtitle">Resumen de actividad de tu organización</p>
+        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Resumen general de la plataforma</p>
       </div>
 
-      {/* Metric cards */}
-      <section>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <MetricCard
-            title="Total documentos"
-            value={metrics.totalDocuments}
-            description="Documentos activos en el vault"
-            accent="text-[#3b82f6]"
-            bg="bg-[#3b82f6]/10"
-            icon={
-              <svg className="w-5 h-5 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-            }
-          />
+      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div variants={item}>
+          <StatCard title="Documentos totales" value={metrics?.totalDocuments ?? 0} icon={FileText} />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatCard title="Solicitudes pendientes" value={metrics?.pendingRequests ?? 0} icon={Send} />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatCard title="Incidentes activos" value={metrics?.activeIncidents ?? 0} icon={AlertTriangle} />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatCard title="Certificaciones" value={metrics?.totalCertifications ?? 0} icon={ShieldCheck} />
+        </motion.div>
+      </motion.div>
 
-          <MetricCard
-            title="Solicitudes pendientes"
-            value={metrics.pendingRequests}
-            description="Solicitudes de acceso en revisión"
-            accent="text-[#f59e0b]"
-            bg="bg-[#f59e0b]/10"
-            icon={
-              <svg className="w-5 h-5 text-[#f59e0b]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z" />
-              </svg>
-            }
-          />
-
-          <MetricCard
-            title="Incidentes abiertos"
-            value={metrics.openIncidents}
-            description="Incidentes de seguridad sin resolver"
-            accent="text-[#ef4444]"
-            bg="bg-[#ef4444]/10"
-            icon={
-              <svg className="w-5 h-5 text-[#ef4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-            }
-          />
-
-          <MetricCard
-            title="Certificaciones emitidas"
-            value={metrics.issuedCertifications}
-            description="Certificados de autenticidad activos"
-            accent="text-[#10b981]"
-            bg="bg-[#10b981]/10"
-            icon={
-              <svg className="w-5 h-5 text-[#10b981]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-              </svg>
-            }
-          />
-        </div>
-      </section>
-
-      {/* Activity and other panels */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-0 overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-[#334155]/60 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#e2e8f0]">Actividad reciente</h2>
-            <Link href="/audit" className="text-xs text-[#3b82f6] hover:underline">Ver todo</Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div variants={item} initial="hidden" animate="show" className="bg-card rounded-xl border border-border p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Documentos por mes</h3>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="flex-1 overflow-auto">
-            {recentActivity.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full py-10 text-center">
-                <svg className="w-10 h-10 text-[#334155] mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-                </svg>
-                <p className="text-[#64748b] text-sm">Sin actividad registrada todavía</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="mes" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  color: 'hsl(var(--card-foreground))',
+                }}
+              />
+              <Bar dataKey="documentos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+
+        <motion.div variants={item} initial="hidden" animate="show" className="bg-card rounded-xl border border-border p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Solicitudes de acceso</h3>
+            <Send className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="mes" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={30} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  color: 'hsl(var(--card-foreground))',
+                }}
+              />
+              <Line type="monotone" dataKey="solicitudes" stroke="hsl(var(--secondary))" strokeWidth={2} dot={{ fill: 'hsl(var(--secondary))' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </motion.div>
+      </div>
+
+      <motion.div variants={item} initial="hidden" animate="show" className="bg-card rounded-xl border border-border p-4 sm:p-5 shadow-card">
+        <div className="flex items-center gap-2 mb-4">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Actividad reciente</h3>
+        </div>
+        <div className="space-y-3">
+          {activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No hay actividad reciente</p>
+          ) : (
+            activity.map((act, i) => (
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 py-2 border-b border-border last:border-0">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <StatusBadge variant={act.type}>{act.action}</StatusBadge>
+                  <span className="text-xs sm:text-sm text-card-foreground">{act.detail}</span>
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap pl-0 sm:pl-2">{act.time}</span>
               </div>
-            ) : (
-              <ul className="divide-y divide-[#334155]/60">
-                {recentActivity.map(activity => (
-                  <li key={activity.id} className="p-4 hover:bg-[#1e293b]/50 transition-colors">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-[#1e293b] flex items-center justify-center flex-shrink-0 text-xs text-[#94a3b8]">
-                        {activity.user?.name ? activity.user.name.charAt(0) : 'S'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#e2e8f0]">
-                          <span className="font-semibold">{activity.user?.name || 'Sistema'}</span>{' '}
-                          realizó <span className="font-mono text-xs bg-[#0f172a] px-1 rounded text-[#8b5cf6]">{activity.action}</span>
-                        </p>
-                        {activity.document && (
-                          <p className="text-xs text-[#94a3b8] mt-0.5 truncate">
-                            Doc: {activity.document.name}
-                          </p>
-                        )}
-                        <p className="text-[10px] text-[#64748b] mt-1">
-                          {new Date(activity.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+            ))
+          )}
         </div>
-
-        <div className="card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-[#e2e8f0]">Accesos rápidos</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/documents" className="p-4 rounded-xl border border-[#334155]/60 bg-[#1e293b] hover:border-[#475569] transition-all flex flex-col items-center gap-2 text-center group">
-               <svg className="w-6 h-6 text-[#3b82f6] group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-               </svg>
-               <span className="text-xs font-semibold text-[#e2e8f0]">Bóveda de Documentos</span>
-            </Link>
-            <Link href="/requests" className="p-4 rounded-xl border border-[#334155]/60 bg-[#1e293b] hover:border-[#475569] transition-all flex flex-col items-center gap-2 text-center group">
-               <svg className="w-6 h-6 text-[#f59e0b] group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z" />
-               </svg>
-               <span className="text-xs font-semibold text-[#e2e8f0]">Solicitudes de Acceso</span>
-            </Link>
-          </div>
-        </div>
-      </section>
+      </motion.div>
     </div>
   )
 }

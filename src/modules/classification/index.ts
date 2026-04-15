@@ -7,4 +7,4 @@
  * Business logic will be implemented in the next prompt.
  */
 
-export type { ClassificationLevel } from '@/types'
+export type { ConfidentialityLevel as ClassificationLevel } from '@/types'

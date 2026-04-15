@@ -1,43 +1,30 @@
-import { Skeleton, TableRowSkeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function AuditLoading() {
   return (
-    <div className="px-8 py-8 space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <Skeleton className="h-7 w-48" />
-          <Skeleton className="h-4 w-72" />
+          <Skeleton className="h-7 w-32" />
+          <Skeleton className="h-4 w-64" />
         </div>
-        <Skeleton className="h-9 w-36 rounded-lg" />
+        <Skeleton className="h-9 w-32" />
       </div>
-
-      {/* Filters skeleton */}
-      <div className="card p-4">
-        <div className="flex flex-wrap gap-3">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-9 w-40 rounded-lg" />
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="border-b border-border bg-muted/30 px-4 py-3 flex gap-4">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-4 w-20" />
           ))}
         </div>
-      </div>
-
-      {/* Table skeleton */}
-      <div className="card p-0 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#334155]/60">
-              {['Fecha', 'Acción', 'Usuario', 'Documento', 'IP'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left">
-                  <Skeleton className="h-3 w-20" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#334155]/40">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <TableRowSkeleton key={i} cols={5} />
-            ))}
-          </tbody>
-        </table>
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="px-4 py-3 border-b border-border flex gap-4">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-5 w-36" />
+          </div>
+        ))}
       </div>
     </div>
   )

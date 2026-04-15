@@ -20,6 +20,7 @@ enum UserRole {
   ADMIN
   REVIEWER
   USER
+  NOTARY
 }
 
 enum ConfidentialityLevel {

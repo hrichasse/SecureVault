@@ -1,90 +1,169 @@
-import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { getCertifications } from '@/modules/certifications/certification.service'
+'use client'
 
-export const metadata: Metadata = { title: 'Certificaciones Digitales' }
+import { useEffect, useState } from 'react'
+import { ShieldCheck, Search, CheckCircle2, XCircle, Hash, Scale, Calendar, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useToast } from '@/hooks/use-toast'
 
-export default async function CertificationsPage() {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+interface Certification {
+  id: string
+  verificationCode: string
+  document: { name: string; company?: { name: string } }
+  certifiedBy: { name: string }
+  sha256Hash: string
+  isValid: boolean
+  createdAt: string
+}
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-    select: { id: true, companyId: true },
-  })
-  if (!dbUser) redirect('/login')
+export default function CertificationsPage() {
+  const [certifications, setCertifications] = useState<Certification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [verifyCode, setVerifyCode] = useState('')
+  const [verifyResult, setVerifyResult] = useState<'valid' | 'invalid' | null>(null)
+  const { toast } = useToast()
 
-  const certifications = await getCertifications(dbUser.companyId)
+  useEffect(() => {
+    fetch('/api/certifications')
+      .then(res => res.json())
+      .then(data => setCertifications(data.data || []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleVerify = async () => {
+    if (!verifyCode.trim()) return
+    try {
+      const res = await fetch(`/api/certifications/verify/${verifyCode.trim()}`)
+      const data = await res.json()
+      setVerifyResult(data.valid ? 'valid' : 'invalid')
+    } catch {
+      setVerifyResult('invalid')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><h1 className="text-2xl font-bold text-foreground">Certificaciones</h1></div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-card rounded-xl border border-border animate-pulse" />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="px-8 py-8 max-w-7xl mx-auto space-y-8">
-      <div>
-        <h1 className="page-title text-2xl flex items-center gap-3">
-          <svg className="w-8 h-8 text-[#10b981]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Certificaciones Digitales
-        </h1>
-        <p className="page-subtitle">Pruebas criptográficas de existencia (Proof of Existence) de tus documentos</p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Certificaciones</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Verificación y certificación de documentos</p>
+        </div>
       </div>
 
-      <div className="card overflow-hidden">
-        {certifications.length === 0 ? (
-          <div className="p-12 text-center text-[#64748b]">
-            No hay certificaciones generadas. Puedes certificar un documento desde su vista de detalle.
+      {/* Verification section */}
+      <div className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card">
+        <div className="flex items-center gap-2 mb-3 sm:mb-4">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold text-card-foreground text-sm sm:text-base">Verificar documento</h2>
+        </div>
+        <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+          Ingrese el código de verificación para validar la autenticidad del documento.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1">
+            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Ej: SV-CERT-2024-001 o código de verificación"
+              value={verifyCode}
+              onChange={(e) => { setVerifyCode(e.target.value); setVerifyResult(null) }}
+              className="pl-9"
+              onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+            />
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[#334155] bg-[#0f172a]/50">
-                  <th className="px-5 py-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Documento</th>
-                  <th className="px-5 py-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Certificado Por</th>
-                  <th className="px-5 py-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Fecha / Hora</th>
-                  <th className="px-5 py-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider text-right">URL de Verificación</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#334155]/60">
-                {certifications.map((cert) => (
-                  <tr key={cert.id} className="hover:bg-[#334155]/20 transition-colors">
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <svg className="w-5 h-5 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                        </svg>
-                        <span className="text-sm font-medium text-[#e2e8f0]">{cert.document.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="text-sm text-[#e2e8f0]">{cert.certifiedBy.name}</span>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="text-sm text-[#94a3b8]">
-                        {new Date(cert.createdAt).toLocaleString('es-ES')}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-right">
-                      <a
-                        href={`/verify/${cert.verificationCode}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#10b981] hover:text-[#059669] hover:underline"
-                      >
-                        Abrir Verificador
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          <Button onClick={handleVerify} className="gradient-primary text-primary-foreground">
+            <Search className="h-4 w-4 mr-2" />
+            Verificar
+          </Button>
+        </div>
+        <AnimatePresence>
+          {verifyResult && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className={`mt-3 sm:mt-4 p-3 sm:p-4 rounded-lg flex items-center gap-3 ${
+                verifyResult === 'valid'
+                  ? 'bg-success/10 border border-success/20'
+                  : 'bg-destructive/10 border border-destructive/20'
+              }`}
+            >
+              {verifyResult === 'valid' ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-success text-sm">✔ Documento válido</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">La certificación ha sido verificada exitosamente.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-destructive text-sm">✖ Documento no encontrado</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">No se encontró una certificación con ese código.</p>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Certifications list */}
+      <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+        <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-border flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-success" />
+          <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Certificaciones registradas</h3>
+          <span className="text-xs text-muted-foreground ml-auto">{certifications.length} registros</span>
+        </div>
+        <div className="divide-y divide-border">
+          {certifications.length === 0 ? (
+            <div className="px-4 sm:px-5 py-8 text-center text-xs sm:text-sm text-muted-foreground">
+              No hay certificaciones registradas.
+            </div>
+          ) : (
+            certifications.map((cert, i) => (
+              <motion.div
+                key={cert.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.08 }}
+                className="px-4 sm:px-5 py-3 sm:py-4 flex flex-col gap-2 hover:bg-muted/20 transition-colors"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge variant={cert.isValid ? 'success' : 'danger'}>
+                    {cert.isValid ? 'Certificado' : 'Revocado'}
+                  </StatusBadge>
+                  <span className="font-mono text-xs sm:text-sm font-semibold text-card-foreground">
+                    {cert.verificationCode}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">{cert.document.name}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">{cert.document.company?.name || 'N/A'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(cert.createdAt).toLocaleDateString('es-CL')}
+                  </p>
+                </div>
+                <p className="text-xs font-mono text-muted-foreground truncate">{cert.sha256Hash}</p>
+              </motion.div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

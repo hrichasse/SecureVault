@@ -95,7 +95,7 @@ export function AuditClient({ initial }: AuditClientProps) {
   const [exportLoading, setExportLoading] = useState(false)
 
   const fetchPage = useCallback(
-    (page: number, overrides?: Partial<typeof filters>) => {
+    (page: number, overrides?: Partial<{ action: string; startDate: string; endDate: string; documentId: string; page: number }>) => {
       const filters = { action, startDate, endDate, documentId, page, ...overrides }
       startTrans(async () => {
         const res = await fetch(buildUrl(filters))

@@ -35,7 +35,6 @@ export async function GET(request: Request) {
         },
         user: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { createdAt: 'desc' },
     })
 
     return NextResponse.json({ data: permissions }, { status: 200 })

@@ -5,4 +5,4 @@
  * Business logic will be implemented in the next prompt.
  */
 
-export type { IncidentSeverity, IncidentStatus } from '@/types'
+export type { IncidentPriority as IncidentSeverity, IncidentStatus } from '@/types'

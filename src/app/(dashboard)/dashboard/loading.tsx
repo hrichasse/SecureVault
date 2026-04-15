@@ -1,45 +1,34 @@
-import { MetricCardSkeleton, ActivityItemSkeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DashboardLoading() {
   return (
-    <div className="px-8 py-8 space-y-8 max-w-7xl mx-auto">
-      {/* Page header skeleton */}
+    <div className="space-y-6">
       <div className="space-y-2">
-        <div className="h-7 w-32 animate-pulse rounded bg-[#1e293b]" />
-        <div className="h-4 w-64 animate-pulse rounded bg-[#1e293b]" />
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-60" />
       </div>
-
-      {/* Metric cards skeleton */}
-      <section>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <MetricCardSkeleton />
-          <MetricCardSkeleton />
-          <MetricCardSkeleton />
-          <MetricCardSkeleton />
-        </div>
-      </section>
-
-      {/* Activity panel skeleton */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-0 overflow-hidden">
-          <div className="p-6 border-b border-[#334155]/60">
-            <div className="h-4 w-32 animate-pulse rounded bg-[#1e293b]" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-card rounded-xl border border-border p-5 space-y-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-8 w-16" />
           </div>
-          <ul>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <ActivityItemSkeleton key={i} />
-            ))}
-          </ul>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-xl border border-border p-5">
+          <Skeleton className="h-48 w-full" />
         </div>
-        <div className="card p-6 space-y-3">
-          <div className="h-4 w-32 animate-pulse rounded bg-[#1e293b]" />
-          <div className="grid grid-cols-2 gap-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-xl bg-[#1e293b]" />
-            ))}
-          </div>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <Skeleton className="h-48 w-full" />
         </div>
-      </section>
+      </div>
+      <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+        <Skeleton className="h-5 w-40" />
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
     </div>
   )
 }

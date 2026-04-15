@@ -5,4 +5,4 @@
  * Business logic will be implemented in the next prompt.
  */
 
-export type { AccessRequestStatus } from '@/types'
+export type { RequestStatus as AccessRequestStatus } from '@/types'

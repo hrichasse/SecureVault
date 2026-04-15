@@ -1,32 +1,39 @@
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { getAuthUser } from '@/modules/auth/auth.service'
 import { redirect } from 'next/navigation'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { mapDbRoleToAppRole } from '@/lib/role-access'
+import { DashboardShell } from '@/components/layout/DashboardShell'
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
+  const authUser = await getAuthUser()
   if (!authUser) redirect('/login')
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-    select: { name: true, email: true },
-  })
+  const appRole = mapDbRoleToAppRole(authUser.role)
+  const initials = authUser.name
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 
-  return (
-    <div className="min-h-screen bg-[#0f172a]">
-      <Sidebar user={{ name: dbUser?.name || 'Usuario', email: dbUser?.email || '' }} />
-      {/* Main content offset by sidebar width */}
-      <main
-        className="min-h-screen overflow-y-auto"
-        style={{ marginLeft: '240px' }}
-      >
-        {children}
-      </main>
-    </div>
-  )
+  const user = {
+    name: authUser.name,
+    email: authUser.email,
+    initials,
+    role: appRole,
+    roleLabel: (() => {
+      switch (appRole) {
+        case 'admin': return 'Administrador'
+        case 'usuario': return 'Usuario'
+        case 'cliente': return 'Cliente'
+        case 'notario': return 'Notario/Certificador'
+      }
+    })(),
+    company: authUser.company.name,
+  }
+
+  return <DashboardShell user={user}>{children}</DashboardShell>
 }

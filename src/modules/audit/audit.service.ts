@@ -23,7 +23,8 @@ export interface LogEventInput {
  */
 export async function logEvent(data: LogEventInput): Promise<void> {
   try {
-    await prisma.auditLog.create({ data })
+    const logData: any = { ...data }
+    await prisma.auditLog.create({ data: logData })
   } catch (err) {
     console.error('[Audit] Failed to log event:', data.action, err)
   }

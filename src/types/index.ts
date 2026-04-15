@@ -4,7 +4,7 @@
 
 // ==================== Roles y Niveles ====================
 
-export type UserRole = 'ADMIN' | 'REVIEWER' | 'USER'
+export type UserRole = 'ADMIN' | 'REVIEWER' | 'USER' | 'NOTARY'
 
 export type ConfidentialityLevel = 'BAJO' | 'MEDIO' | 'ALTO' | 'CRITICO'
 
@@ -121,8 +121,8 @@ export interface Certification {
   isValid: boolean
 }
 
-import type { AuditAction } from '@prisma/client'
-export type { AuditAction }
+import type { AuditAction, IncidentType } from '@prisma/client'
+export type { AuditAction, IncidentType }
 
 
 export interface AuditEntry {

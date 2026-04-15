@@ -2,19 +2,13 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LoginForm } from '@/components/auth/LoginForm'
+import { Shield, Lock } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión',
+  title: 'Iniciar sesión — SecureVault',
 }
 
-/**
- * Página de login.
- *
- * Al ser un Server Component, puede verificar la sesión antes de renderizar.
- * Si el usuario ya está autenticado → redirige directamente al dashboard.
- */
 export default async function LoginPage() {
-  // Verificar sesión existente — redirect si ya está logueado
   const supabase = await createClient()
   const {
     data: { user },
@@ -25,34 +19,60 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo + Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#3b82f6] mb-4">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-[#e2e8f0]">Bienvenido de vuelta</h1>
-          <p className="text-[#94a3b8] text-sm mt-1">
-            Ingresa tus credenciales para continuar
-          </p>
+    <div className="min-h-screen flex bg-background">
+      {/* Left panel — gradient hero */}
+      <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full border border-primary-foreground/20"
+              style={{
+                width: `${200 + i * 120}px`,
+                height: `${200 + i * 120}px`,
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          ))}
         </div>
+        <div className="relative z-10 text-center space-y-6">
+          <div className="h-16 w-16 rounded-2xl bg-primary-foreground/20 backdrop-blur flex items-center justify-center mx-auto">
+            <Shield className="h-8 w-8 text-primary-foreground" />
+          </div>
+          <h1 className="text-4xl font-bold text-primary-foreground">SecureVault Control</h1>
+          <p className="text-lg text-primary-foreground/80 max-w-md">
+            Plataforma empresarial para la gestión segura de documentos corporativos
+          </p>
+          <div className="flex items-center gap-2 justify-center text-primary-foreground/60 text-sm">
+            <Lock className="h-4 w-4" />
+            <span>Cifrado SHA-256 · Auditoría completa · Certificación digital</span>
+          </div>
+        </div>
+      </div>
 
-        {/* Form card */}
-        <div className="card p-8">
+      {/* Right panel — login form */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-md space-y-8">
+          <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
+            <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
+              <Shield className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold text-foreground">SecureVault</span>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-foreground">Iniciar sesión</h2>
+            <p className="text-muted-foreground text-sm">Accede a tu plataforma de gestión documental segura</p>
+          </div>
+
           <LoginForm />
+
+          <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+            <Lock className="h-3 w-3" />
+            Plataforma segura empresarial · Conexión cifrada
+          </p>
         </div>
       </div>
     </div>
