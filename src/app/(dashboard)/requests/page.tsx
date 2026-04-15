@@ -36,18 +36,22 @@ export default function RequestsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const handleAction = async (id: string, action: 'APPROVED' | 'REJECTED') => {
+  const handleAction = async (id: string, action: 'approve' | 'reject') => {
     try {
       const res = await fetch(`/api/access-requests/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action }),
+        body: JSON.stringify({
+          action,
+          ...(action === 'reject' ? { reviewNote: 'Solicitud rechazada desde el panel' } : {}),
+        }),
       })
       if (res.ok) {
-        setRequests(prev => prev.map(r => r.id === id ? { ...r, status: action } : r))
+        const statusMap = { approve: 'APPROVED', reject: 'REJECTED' } as const
+        setRequests(prev => prev.map(r => r.id === id ? { ...r, status: statusMap[action] } : r))
         toast({
-          title: action === 'APPROVED' ? 'Solicitud aprobada' : 'Solicitud rechazada',
-          description: `La solicitud ha sido ${action === 'APPROVED' ? 'aprobada' : 'rechazada'} exitosamente.`,
+          title: action === 'approve' ? 'Solicitud aprobada' : 'Solicitud rechazada',
+          description: `La solicitud ha sido ${action === 'approve' ? 'aprobada' : 'rechazada'} exitosamente.`,
         })
       }
     } catch (err) {
@@ -107,10 +111,10 @@ export default function RequestsPage() {
               <div className="flex gap-2">
                 {req.status === 'PENDING' && (
                   <>
-                    <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => handleAction(req.id, 'APPROVED')}>
+                    <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => handleAction(req.id, 'approve')}>
                       <Check className="h-4 w-4 mr-1" /> Aprobar
                     </Button>
-                    <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleAction(req.id, 'REJECTED')}>
+                    <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleAction(req.id, 'reject')}>
                       <X className="h-4 w-4 mr-1" /> Rechazar
                     </Button>
                   </>

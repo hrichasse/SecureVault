@@ -114,3 +114,29 @@
     box-shadow: var(--shadow-elevated);
   }
 }
+
+@layer components {
+  /* ── Card ─────────────────────────────────────────────── */
+  .card {
+    @apply bg-card border border-border rounded-xl shadow-card;
+  }
+
+  /* ── Form primitives ─────────────────────────────────── */
+  .label {
+    @apply block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring transition-colors disabled:opacity-50;
+  }
+
+  /* ── Secondary button ────────────────────────────────── */
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground bg-transparent hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  /* ── Glass card (Lovable compat) ─────────────────────── */
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-sm border border-border rounded-xl;
+  }
+}

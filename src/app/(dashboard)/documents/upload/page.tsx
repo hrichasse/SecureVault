@@ -1,19 +1,18 @@
 import type { Metadata } from 'next'
+import { DocumentUpload } from '@/components/documents/DocumentUpload'
 
 export const metadata: Metadata = { title: 'Subir documento' }
 
 export default function DocumentUploadPage() {
   return (
-    <div className="p-8 space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 py-4">
       <div>
-        <h1 className="text-2xl font-bold text-white">Subir documento</h1>
-        <p className="text-slate-400 mt-1">Carga un nuevo documento al vault</p>
+        <h1 className="text-2xl font-bold text-foreground">Subir documento</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Carga un PDF al vault. El sistema clasificará su nivel de confidencialidad automáticamente.
+        </p>
       </div>
-
-      {/* TODO: Add DocumentUploadForm with drag-and-drop, classification selection */}
-      <div className="glass-card p-12 border-2 border-dashed border-vault-border text-center text-slate-500 text-sm">
-        El formulario de carga se implementará en el siguiente prompt.
-      </div>
+      <DocumentUpload />
     </div>
   )
 }

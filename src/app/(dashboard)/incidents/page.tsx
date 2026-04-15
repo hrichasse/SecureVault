@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, User, Clock } from 'lucide-react'
+import { AlertTriangle, User, Clock, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { IncidentForm } from '@/components/incidents/IncidentForm'
 import { motion } from 'framer-motion'
 
 interface Incident {
@@ -30,13 +31,19 @@ export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('Todos')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
-  useEffect(() => {
+  const loadIncidents = () => {
+    setLoading(true)
     fetch('/api/incidents')
       .then(res => res.json())
       .then(data => setIncidents(data.data || []))
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadIncidents()
   }, [])
 
   const filtered = activeFilter === 'Todos'
@@ -61,7 +68,7 @@ export default function IncidentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Incidentes</h1>
           <p className="text-sm text-muted-foreground">Sistema de gestión de incidentes documentales</p>
         </div>
-        <Button className="gradient-primary text-primary-foreground">
+        <Button className="gradient-primary text-primary-foreground" onClick={() => setShowCreateModal(true)}>
           <AlertTriangle className="h-4 w-4 mr-2" />
           Reportar incidente
         </Button>
@@ -124,6 +131,27 @@ export default function IncidentsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal crear incidente */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="card w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                Reportar Incidente
+              </h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <IncidentForm
+              onSuccess={() => { setShowCreateModal(false); loadIncidents() }}
+              onCancel={() => setShowCreateModal(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
