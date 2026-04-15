@@ -28,7 +28,7 @@ export async function PATCH(
 
     if (user.role === 'USER') {
       return NextResponse.json(
-        { error: 'Solo ADMIN o REVIEWER pueden revisar solicitudes' },
+        { error: 'Solo ADMIN o ADMIN_COMPANY pueden revisar solicitudes' },
         { status: 403 }
       )
     }

@@ -4,7 +4,7 @@
 
 // ==================== Roles y Niveles ====================
 
-export type UserRole = 'ADMIN' | 'REVIEWER' | 'USER' | 'NOTARY'
+export type UserRole = 'ADMIN' | 'ADMIN_COMPANY' | 'USER' | 'NOTARY'
 
 export type ConfidentialityLevel = 'BAJO' | 'MEDIO' | 'ALTO' | 'CRITICO'
 

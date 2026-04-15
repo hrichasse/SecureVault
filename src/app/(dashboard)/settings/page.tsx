@@ -19,7 +19,10 @@ export default async function SettingsPage() {
   if (!dbUser) redirect('/login')
 
   const roleLabel: Record<string, string> = {
-    ADMIN: 'Administrador', REVIEWER: 'Revisor', USER: 'Usuario', NOTARY: 'Notario',
+    ADMIN: 'Administrador del Sistema',
+    ADMIN_COMPANY: 'Administrador de Empresa',
+    USER: 'Trabajador',
+    NOTARY: 'Notario',
   }
 
   return (

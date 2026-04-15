@@ -27,10 +27,11 @@ const registerSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Ingresa un email válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
-  companyName: z
-    .string()
-    .min(2, 'El nombre de empresa debe tener al menos 2 caracteres')
-    .max(200),
+  role: z.enum(['ADMIN', 'ADMIN_COMPANY', 'NOTARY']),
+  companyName: z.string().max(200).optional(),
+  companyRut: z.string().max(30).optional(),
+  companyAddress: z.string().max(300).optional(),
+  companyBusinessLine: z.string().max(200).optional(),
 })
 
 // ── loginAction ───────────────────────────────────────────────
@@ -80,7 +81,11 @@ export async function registerAction(
     name: (formData.get('name') as string)?.trim(),
     email: (formData.get('email') as string)?.trim().toLowerCase(),
     password: formData.get('password') as string,
-    companyName: (formData.get('companyName') as string)?.trim(),
+    role: ((formData.get('role') as string) || 'ADMIN_COMPANY').trim(),
+    companyName: (formData.get('companyName') as string)?.trim() || undefined,
+    companyRut: (formData.get('companyRut') as string)?.trim() || undefined,
+    companyAddress: (formData.get('companyAddress') as string)?.trim() || undefined,
+    companyBusinessLine: (formData.get('companyBusinessLine') as string)?.trim() || undefined,
   }
 
   const parsed = registerSchema.safeParse(raw)
@@ -88,7 +93,22 @@ export async function registerAction(
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
   }
 
-  const { name, email, password, companyName } = parsed.data
+  const {
+    name,
+    email,
+    password,
+    role,
+    companyName,
+    companyRut,
+    companyAddress,
+    companyBusinessLine,
+  } = parsed.data
+
+  if (role === 'ADMIN_COMPANY') {
+    if (!companyName || !companyRut || !companyAddress || !companyBusinessLine) {
+      return { error: 'Para Administrador de Empresa debes completar nombre, RUT, dirección y giro.' }
+    }
+  }
   const supabase = await createClient()
 
   // 1. Crear usuario en Supabase Auth
@@ -120,22 +140,46 @@ export async function registerAction(
   // 2. Crear registros en Prisma (transacción)
   try {
     await prisma.$transaction(async (tx) => {
-      // Crear empresa
-      const company = await tx.company.create({
-        data: {
-          name: companyName,
-          email: email,
-        },
-      })
+      let targetCompanyId = ''
 
-      // Crear usuario vinculado a la empresa con rol ADMIN
+      if (role === 'ADMIN_COMPANY') {
+        const company = await tx.company.create({
+          data: {
+            name: companyName!,
+            email,
+            rut: companyRut,
+            address: companyAddress,
+            businessLine: companyBusinessLine,
+            adminName: name,
+          },
+        })
+        targetCompanyId = company.id
+      } else {
+        const secureVaultCompany = await tx.company.upsert({
+          where: { email: 'admin@securevault.cl' },
+          update: {
+            name: 'Secure Vault',
+          },
+          create: {
+            name: 'Secure Vault',
+            email: 'admin@securevault.cl',
+            rut: '76.000.000-0',
+            address: 'Santiago, Chile',
+            businessLine: 'Software y Ciberseguridad',
+            adminName: 'Equipo Secure Vault',
+            description: 'Empresa base del sistema SecureVault',
+          },
+        })
+        targetCompanyId = secureVaultCompany.id
+      }
+
       await tx.user.create({
         data: {
           supabaseId: authData.user!.id,
           email,
           name,
-          role: 'ADMIN',
-          companyId: company.id,
+          role,
+          companyId: targetCompanyId,
         },
       })
     })
@@ -156,7 +200,16 @@ export async function registerAction(
   // Registrar registro en auditoría
   const newUser = await prisma.user.findUnique({ where: { email }, select: { id: true, companyId: true } })
   if (newUser) {
-    await logEvent({ action: 'REGISTER', userId: newUser.id, companyId: newUser.companyId, metadata: { name, companyName } })
+    await logEvent({
+      action: 'REGISTER',
+      userId: newUser.id,
+      companyId: newUser.companyId,
+      metadata: {
+        name,
+        role,
+        companyName: companyName ?? 'Secure Vault',
+      },
+    })
   }
 
   redirect('/dashboard')

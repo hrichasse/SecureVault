@@ -7,7 +7,8 @@ import { logEvent } from '@/modules/audit/audit.service'
 export async function certifyDocument(
   documentId: string,
   userId: string,
-  companyId: string
+  companyId: string,
+  notaryLicenseNumber?: string
 ) {
   // 1. Obtener documento para extraer el hash SHA-256 ya calculado
   const document = await prisma.document.findFirst({
@@ -28,6 +29,7 @@ export async function certifyDocument(
       data: {
         documentId,
         certifiedById: userId,
+        notaryLicenseNumber: notaryLicenseNumber || null,
         sha256Hash: document.sha256Hash,
       },
     })
@@ -43,6 +45,8 @@ export async function certifyDocument(
           certificationId: certification.id,
           verificationCode: certification.verificationCode,
           sha256Hash: document.sha256Hash,
+          notaryLicenseNumber: notaryLicenseNumber || null,
+          signatureProvided: !!notaryLicenseNumber,
         },
       },
     })
@@ -87,4 +91,27 @@ export async function verifyCertification(code: string) {
   }
 
   return cert
+}
+
+export async function getPendingCertificationDocuments(companyId: string) {
+  return prisma.document.findMany({
+    where: {
+      companyId,
+      status: { not: 'DELETED' },
+      certifications: {
+        none: { isValid: true },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      originalName: true,
+      createdAt: true,
+      confidentialityLevel: true,
+      uploadedBy: {
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 }

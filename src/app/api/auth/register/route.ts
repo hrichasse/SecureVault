@@ -7,7 +7,11 @@ const registerSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8),
-  companyName: z.string().min(2).max(200),
+  role: z.enum(['ADMIN', 'ADMIN_COMPANY', 'NOTARY']),
+  companyName: z.string().max(200).optional(),
+  companyRut: z.string().max(30).optional(),
+  companyAddress: z.string().max(300).optional(),
+  companyBusinessLine: z.string().max(200).optional(),
 })
 
 /**
@@ -33,7 +37,22 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, email, password, companyName } = parsed.data
+    const {
+      name,
+      email,
+      password,
+      role,
+      companyName,
+      companyRut,
+      companyAddress,
+      companyBusinessLine,
+    } = parsed.data
+
+    if (role === 'ADMIN_COMPANY') {
+      if (!companyName || !companyRut || !companyAddress || !companyBusinessLine) {
+        return NextResponse.json({ error: 'Faltan datos de empresa para ADMIN_COMPANY' }, { status: 400 })
+      }
+    }
     const supabase = await createClient()
 
     // 1. Supabase Auth — crear usuario
@@ -65,17 +84,44 @@ export async function POST(req: Request) {
 
     // 2. Prisma — crear Company y User en transacción
     const user = await prisma.$transaction(async (tx) => {
-      const company = await tx.company.create({
-        data: { name: companyName, email },
-      })
+      let targetCompanyId = ''
+
+      if (role === 'ADMIN_COMPANY') {
+        const company = await tx.company.create({
+          data: {
+            name: companyName!,
+            email,
+            rut: companyRut,
+            address: companyAddress,
+            businessLine: companyBusinessLine,
+            adminName: name,
+          },
+        })
+        targetCompanyId = company.id
+      } else {
+        const secureVaultCompany = await tx.company.upsert({
+          where: { email: 'admin@securevault.cl' },
+          update: { name: 'Secure Vault' },
+          create: {
+            name: 'Secure Vault',
+            email: 'admin@securevault.cl',
+            rut: '76.000.000-0',
+            address: 'Santiago, Chile',
+            businessLine: 'Software y Ciberseguridad',
+            adminName: 'Equipo Secure Vault',
+            description: 'Empresa base del sistema SecureVault',
+          },
+        })
+        targetCompanyId = secureVaultCompany.id
+      }
 
       return tx.user.create({
         data: {
           supabaseId: authData.user!.id,
           email,
           name,
-          role: 'ADMIN',
-          companyId: company.id,
+          role,
+          companyId: targetCompanyId,
         },
         include: { company: true },
       })

@@ -18,7 +18,7 @@ generator client {
 
 enum UserRole {
   ADMIN
-  REVIEWER
+  ADMIN_COMPANY
   USER
   NOTARY
 }
@@ -94,6 +94,10 @@ model Company {
   id          String   @id @default(cuid())
   name        String
   email       String   @unique
+  rut         String?
+  address     String?
+  businessLine String?
+  adminName   String?
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -212,6 +216,7 @@ model Certification {
   document         Document @relation(fields: [documentId], references: [id])
   certifiedById    String
   certifiedBy      User     @relation(fields: [certifiedById], references: [id])
+  notaryLicenseNumber String?
   sha256Hash       String
   verificationCode String   @unique @default(cuid())
   certificateUrl   String? // URL del PDF generado (opcional)

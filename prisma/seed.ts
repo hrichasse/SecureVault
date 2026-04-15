@@ -3,7 +3,7 @@
  *
  * Crea datos demo para desarrollo local:
  * - 1 empresa
- * - 3 usuarios (ADMIN, REVIEWER, USER)
+ * - 3 usuarios (ADMIN, ADMIN_COMPANY, USER)
  *
  * Ejecutar: npm run db:seed
  *
@@ -44,10 +44,10 @@ async function main() {
       role: 'ADMIN',
     },
     {
-      supabaseId: 'seed-reviewer-' + company.id.slice(0, 8),
+      supabaseId: 'seed-admin-company-' + company.id.slice(0, 8),
       email: 'reviewer@demo.com',
-      name: 'Revisor Demo',
-      role: 'REVIEWER',
+      name: 'Admin Empresa Demo',
+      role: 'ADMIN_COMPANY',
     },
     {
       supabaseId: 'seed-user-' + company.id.slice(0, 8),

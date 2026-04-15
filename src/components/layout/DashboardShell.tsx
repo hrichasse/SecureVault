@@ -30,7 +30,7 @@ interface DashboardUser {
 
 const roleBadgeVariant: Record<AppRole, 'info' | 'success' | 'neutral' | 'warning'> = {
   admin: 'info',
-  usuario: 'success',
+  admin_empresa: 'success',
   cliente: 'neutral',
   notario: 'warning',
 }

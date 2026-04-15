@@ -39,12 +39,12 @@ const iconMap = {
 } as const
 
 const allItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: 'LayoutDashboard' as const, roles: ['admin', 'usuario', 'cliente', 'notario'] as AppRole[] },
-  { title: 'Documentos', url: '/documents', icon: 'FileText' as const, roles: ['admin', 'usuario', 'cliente', 'notario'] as AppRole[] },
-  { title: 'Solicitudes', url: '/requests', icon: 'Send' as const, roles: ['admin', 'usuario', 'cliente'] as AppRole[] },
-  { title: 'Incidentes', url: '/incidents', icon: 'AlertTriangle' as const, roles: ['admin', 'usuario'] as AppRole[] },
-  { title: 'Certificaciones', url: '/certifications', icon: 'ShieldCheck' as const, roles: ['admin', 'notario'] as AppRole[] },
-  { title: 'Auditoría', url: '/audit', icon: 'ClipboardList' as const, roles: ['admin'] as AppRole[] },
+  { title: 'Dashboard', url: '/dashboard', icon: 'LayoutDashboard' as const, roles: ['admin', 'admin_empresa', 'cliente', 'notario'] as AppRole[] },
+  { title: 'Documentos', url: '/documents', icon: 'FileText' as const, roles: ['admin', 'admin_empresa', 'cliente', 'notario'] as AppRole[] },
+  { title: 'Solicitudes', url: '/requests', icon: 'Send' as const, roles: ['admin', 'admin_empresa', 'cliente'] as AppRole[] },
+  { title: 'Incidentes', url: '/incidents', icon: 'AlertTriangle' as const, roles: ['admin', 'admin_empresa'] as AppRole[] },
+  { title: 'Certificaciones', url: '/certifications', icon: 'ShieldCheck' as const, roles: ['admin', 'admin_empresa', 'notario'] as AppRole[] },
+  { title: 'Auditoría', url: '/audit', icon: 'ClipboardList' as const, roles: ['admin', 'admin_empresa'] as AppRole[] },
 ]
 
 const adminItems = [
@@ -110,7 +110,7 @@ export function AppSidebar({ role }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'admin_empresa') && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
               Administración

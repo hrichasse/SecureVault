@@ -41,9 +41,9 @@ export default async function RegisterPage() {
           <div className="h-16 w-16 rounded-2xl bg-primary-foreground/20 backdrop-blur flex items-center justify-center mx-auto">
             <Shield className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold text-primary-foreground">Únete a SecureVault</h1>
+          <h1 className="text-4xl font-bold text-primary-foreground">Crea tu acceso seguro</h1>
           <p className="text-lg text-primary-foreground/80 max-w-md">
-            Comienza a proteger los documentos de tu organización hoy mismo
+            Registra Administrador del Sistema, Administrador de Empresa o Notario y comienza a operar en SecureVault
           </p>
         </div>
       </div>
@@ -59,8 +59,15 @@ export default async function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-foreground">Crear cuenta</h2>
-            <p className="text-muted-foreground text-sm">Comienza a proteger tus documentos hoy</p>
+            <h2 className="text-2xl font-bold text-foreground">Registro de acceso</h2>
+            <p className="text-muted-foreground text-sm">
+              Selecciona tu tipo de cuenta. Si eliges Administrador de Empresa, deberás completar los datos legales de la empresa.
+            </p>
+          </div>
+
+          <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3 border border-border">
+            <Shield className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-primary" />
+            <span>Los trabajadores (USER) son creados por el Administrador de Empresa desde Gestión de Equipo.</span>
           </div>
 
           <RegisterForm />

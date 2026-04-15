@@ -32,7 +32,7 @@ const statusLabels: Record<string, string> = {
 }
 
 export function RequestList({ requests, userRole }: RequestListProps) {
-  const isReviewer = userRole === 'ADMIN' || userRole === 'REVIEWER'
+  const isReviewer = userRole === 'ADMIN' || userRole === 'ADMIN_COMPANY'
 
   if (requests.length === 0) {
     return (

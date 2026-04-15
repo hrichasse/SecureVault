@@ -37,7 +37,7 @@ export async function PATCH(
     const user = await getAuthUser()
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Solo REVIEWER O ADMIN pueden actualizar incidentes (asignar/cerrar)
+    // Solo ADMIN_COMPANY O ADMIN pueden actualizar incidentes (asignar/cerrar)
     if (user.role === 'USER') {
       return NextResponse.json(
         { error: 'No tienes permisos para gestionar incidentes' },

@@ -215,7 +215,7 @@ export async function getRequests({
   role: UserRole
   status?: string
 }) {
-  const isReviewer = role === 'ADMIN' || role === 'REVIEWER'
+  const isReviewer = role === 'ADMIN' || role === 'ADMIN_COMPANY'
 
   return prisma.accessRequest.findMany({
     where: {
@@ -241,7 +241,7 @@ export async function hasActivePermission(
   userId: string,
   role: UserRole
 ): Promise<boolean> {
-  if (role === 'ADMIN' || role === 'REVIEWER') return true
+  if (role === 'ADMIN' || role === 'ADMIN_COMPANY') return true
 
   const permission = await prisma.documentPermission.findFirst({
     where: {

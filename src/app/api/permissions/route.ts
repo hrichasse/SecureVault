@@ -6,8 +6,8 @@ import { prisma } from '@/lib/prisma'
  * GET /api/permissions
  *
  * Query params:
- * - documentId?: permisos de un documento específico (ADMIN/REVIEWER)
- * - userId?: permisos de un usuario específico (ADMIN/REVIEWER)
+ * - documentId?: permisos de un documento específico (ADMIN/ADMIN_COMPANY)
+ * - userId?: permisos de un usuario específico (ADMIN/ADMIN_COMPANY)
  * Sin params: permisos activos del usuario autenticado
  */
 export async function GET(request: Request) {
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const documentId = searchParams.get('documentId')
     const targetUserId = searchParams.get('userId')
 
-    const isReviewer = user.role === 'ADMIN' || user.role === 'REVIEWER'
+    const isReviewer = user.role === 'ADMIN' || user.role === 'ADMIN_COMPANY'
 
     const permissions = await prisma.documentPermission.findMany({
       where: {

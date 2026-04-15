@@ -1,16 +1,29 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuthUser } from '@/lib/auth-utils'
-import { getCertifications, certifyDocument } from '@/modules/certifications/certification.service'
+import { getCertifications, certifyDocument, getPendingCertificationDocuments } from '@/modules/certifications/certification.service'
 
 const createSchema = z.object({
   documentId: z.string().min(1),
+  notaryLicenseNumber: z.string().min(4).optional(),
+  signPassword: z.string().min(8).optional(),
 })
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await getAuthUser()
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const includePending = searchParams.get('pending') === 'true'
+
+    if (includePending) {
+      if (user.role !== 'ADMIN' && user.role !== 'ADMIN_COMPANY' && user.role !== 'NOTARY') {
+        return NextResponse.json({ error: 'No tienes permisos para ver documentos pendientes' }, { status: 403 })
+      }
+      const pendingDocuments = await getPendingCertificationDocuments(user.companyId)
+      return NextResponse.json({ data: pendingDocuments }, { status: 200 })
+    }
 
     const certifications = await getCertifications(user.companyId)
 
@@ -26,7 +39,7 @@ export async function POST(request: Request) {
     const user = await getAuthUser()
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Permisos: Solo ADMIN o REVIEWER deberían certificar
+    // Permisos: Solo ADMIN, ADMIN_COMPANY o NOTARY pueden certificar
     if (user.role === 'USER') {
       return NextResponse.json({ error: 'No tienes permisos para certificar documentos' }, { status: 403 })
     }
@@ -41,11 +54,16 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await certifyDocument(
-      parsed.data.documentId,
-      user.id,
-      user.companyId
-    )
+    if (user.role === 'NOTARY') {
+      if (!parsed.data.notaryLicenseNumber || !parsed.data.signPassword) {
+        return NextResponse.json(
+          { error: 'Debes ingresar cédula notarial y contraseña de firma para legalizar.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const result = await certifyDocument(parsed.data.documentId, user.id, user.companyId, parsed.data.notaryLicenseNumber)
 
     return NextResponse.json({ data: result }, { status: 201 })
   } catch (error: unknown) {

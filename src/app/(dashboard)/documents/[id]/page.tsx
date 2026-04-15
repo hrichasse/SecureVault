@@ -163,7 +163,7 @@ export default async function DocumentDetailPage({
               <RequestAccessButton documentId={document.id} />
             )}
             
-            {['ADMIN', 'REVIEWER'].includes(dbUser.role) && (
+            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
               <div className="pt-2">
                 <CertifyButton documentId={document.id} />
               </div>

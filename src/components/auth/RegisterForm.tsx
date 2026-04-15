@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 export function RegisterForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'ADMIN_COMPANY' | 'NOTARY'>('ADMIN_COMPANY')
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -25,11 +26,25 @@ export function RegisterForm() {
 
     const formData = new FormData(e.currentTarget)
     const password = formData.get('password') as string
+    const role = (formData.get('role') as string) || 'ADMIN_COMPANY'
 
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres')
       setLoading(false)
       return
+    }
+
+    if (role === 'ADMIN_COMPANY') {
+      const companyName = (formData.get('companyName') as string || '').trim()
+      const companyRut = (formData.get('companyRut') as string || '').trim()
+      const companyAddress = (formData.get('companyAddress') as string || '').trim()
+      const companyBusinessLine = (formData.get('companyBusinessLine') as string || '').trim()
+
+      if (!companyName || !companyRut || !companyAddress || !companyBusinessLine) {
+        setError('Para Administrador de Empresa debes completar todos los datos de empresa.')
+        setLoading(false)
+        return
+      }
     }
 
     const result = await registerAction(formData)
@@ -57,12 +72,47 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="reg-company">Nombre de la empresa</Label>
-        <div className="relative">
-          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input id="reg-company" name="companyName" type="text" autoComplete="organization" required minLength={2} placeholder="Acme Corp" className="pl-10" disabled={loading} />
-        </div>
+        <Label htmlFor="reg-role">Tipo de cuenta</Label>
+        <select
+          id="reg-role"
+          name="role"
+          className="input"
+          value={selectedRole}
+          onChange={(e) => setSelectedRole(e.target.value as 'ADMIN' | 'ADMIN_COMPANY' | 'NOTARY')}
+          disabled={loading}
+        >
+          <option value="ADMIN">Administrador del Sistema</option>
+          <option value="ADMIN_COMPANY">Administrador de Empresa</option>
+          <option value="NOTARY">Notario/Certificador</option>
+        </select>
       </div>
+
+      {selectedRole === 'ADMIN_COMPANY' && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="reg-company">Nombre de la empresa</Label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input id="reg-company" name="companyName" type="text" autoComplete="organization" required minLength={2} placeholder="Acme Corp" className="pl-10" disabled={loading} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reg-company-rut">RUT empresa</Label>
+            <Input id="reg-company-rut" name="companyRut" type="text" required placeholder="12.345.678-9" className="input" disabled={loading} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reg-company-address">Dirección</Label>
+            <Input id="reg-company-address" name="companyAddress" type="text" required placeholder="Av. Providencia 1234" className="input" disabled={loading} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reg-company-business">Giro</Label>
+            <Input id="reg-company-business" name="companyBusinessLine" type="text" required placeholder="Logística y transporte" className="input" disabled={loading} />
+          </div>
+        </>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="reg-email">Correo electrónico</Label>

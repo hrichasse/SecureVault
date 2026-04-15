@@ -1,6 +1,6 @@
 /**
  * GET /api/audit — Lista paginada de eventos de auditoría
- * Accesible solo por ADMIN y REVIEWER de la empresa
+ * Accesible solo por ADMIN y ADMIN_COMPANY de la empresa
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth-utils'

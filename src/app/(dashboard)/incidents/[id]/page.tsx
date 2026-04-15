@@ -39,13 +39,13 @@ export default async function IncidentDetailPage({
   const incident = await getIncidentById(params.id, dbUser.companyId)
   if (!incident) notFound()
 
-  // Para el combo de asignación, listamos usuarios ADMIN o REVIEWER de la empresa
+  // Para el combo de asignación, listamos usuarios ADMIN o ADMIN_COMPANY de la empresa
   const assignableUsers = await prisma.user.findMany({
-    where: { companyId: dbUser.companyId, role: { in: ['ADMIN', 'REVIEWER'] } },
+    where: { companyId: dbUser.companyId, role: { in: ['ADMIN', 'ADMIN_COMPANY'] } },
     select: { id: true, name: true },
   })
 
-  const isReviewer = dbUser.role === 'ADMIN' || dbUser.role === 'REVIEWER'
+  const isReviewer = dbUser.role === 'ADMIN' || dbUser.role === 'ADMIN_COMPANY'
 
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto space-y-8">
