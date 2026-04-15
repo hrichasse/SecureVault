@@ -20,7 +20,8 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
   const [isMatch, setIsMatch] = useState<boolean | null>(null)
 
   useEffect(() => {
-    fetch(`/api/certifications/verify/${params.code}`)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    fetch(`${baseUrl}/api/certifications/verify/${params.code}`)
       .then(res => res.json().then(json => ({ ok: res.ok, json })))
       .then(({ ok, json }) => {
         if (!ok || !json.valid) {

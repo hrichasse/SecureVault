@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // App Router is enabled by default in Next.js 14
+  output: 'standalone',
   experimental: {
-    // Server Actions are stable in Next.js 14 but still listed under experimental
     serverActions: {
       bodySizeLimit: '10mb',
     },
@@ -20,3 +19,4 @@ const nextConfig = {
 }
 
 export default nextConfig
+
