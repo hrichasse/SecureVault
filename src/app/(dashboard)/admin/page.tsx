@@ -8,8 +8,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useToast } from '@/hooks/use-toast'
 
 type DbRole = 'ADMIN' | 'ADMIN_COMPANY' | 'USER' | 'NOTARY'
-type AppRole = 'admin' | 'admin_empresa' | 'cliente' | 'notario'
-type AppRole = 'admin' | 'admin_empresa' | 'cliente' | 'notario'
 
 interface CurrentUser {
   id: string
@@ -60,6 +58,24 @@ const emptyCreateForm = {
   companyBusinessLine: '',
 }
 
+function normalizeRole(input: unknown): DbRole | null {
+  if (typeof input !== 'string') return null
+
+  const role = input.trim()
+  if (role === 'ADMIN' || role === 'ADMIN_COMPANY' || role === 'USER' || role === 'NOTARY') {
+    return role
+  }
+
+  const appToDb: Record<string, DbRole> = {
+    admin: 'ADMIN',
+    admin_empresa: 'ADMIN_COMPANY',
+    cliente: 'USER',
+    notario: 'NOTARY',
+  }
+
+  return appToDb[role] ?? null
+}
+
 export default function AdminPage() {
   const [users, setUsers] = useState<UserItem[]>([])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
@@ -88,7 +104,17 @@ export default function AdminPage() {
       ])
       setUsers(usersRes.data || [])
       if (meRes.data) {
-        setCurrentUser({ id: meRes.data.id, role: meRes.data.role })
+        const role = normalizeRole(meRes.data.role)
+        if (role) {
+          setCurrentUser({ id: meRes.data.id, role })
+        } else {
+          setCurrentUser(null)
+          toast({
+            title: 'Rol no reconocido',
+            description: 'No se pudo identificar tu rol para gestionar usuarios.',
+            variant: 'destructive',
+          })
+        }
       }
     } catch {
       toast({ title: 'Error', description: 'No se pudo cargar la lista de usuarios.' })
@@ -221,7 +247,7 @@ export default function AdminPage() {
         {creatableRoles.length > 0 && (
           <Button className="gradient-primary text-primary-foreground" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Agregar usuario
+            {currentUser?.role === 'ADMIN_COMPANY' ? 'Agregar trabajador' : 'Agregar usuario'}
           </Button>
         )}
       </div>
