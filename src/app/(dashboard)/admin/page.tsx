@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useToast } from '@/hooks/use-toast'
 
 type DbRole = 'ADMIN' | 'ADMIN_COMPANY' | 'USER' | 'NOTARY'
+type AppRole = 'admin' | 'admin_empresa' | 'cliente' | 'notario'
+type AppRole = 'admin' | 'admin_empresa' | 'cliente' | 'notario'
 
 interface CurrentUser {
   id: string
