@@ -1,0 +1,16 @@
+================================================================
+  INTEGRANTES DEL EQUIPO — SecureVault AI
+================================================================
+
+INTEGRANTES
+1. Hernan Richasse
+2. Donkan Marin
+3. Gustavo Gutierrez
+
+
+================================================================
+Proyecto  : SecureVault AI
+Curso     : Taller aplicado de Programación 
+Docente   : Christian Alvarez
+Institución: Duoc UC
+================================================================

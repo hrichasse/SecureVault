@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Toaster } from '@/components/ui/toaster'
+import { VaultAssistant } from './VaultAssistant'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { useRouter } from 'next/navigation'
 import type { AppRole } from '@/lib/role-access'
@@ -129,6 +130,7 @@ function DashboardContent({ user, children }: { user: DashboardUser; children: R
         </div>
       </div>
       <Toaster />
+      <VaultAssistant />
     </SidebarProvider>
   )
 }
