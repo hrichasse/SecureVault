@@ -18,46 +18,59 @@ export async function middleware(request: NextRequest) {
   // Respuesta base que se actualiza con las cookies de sesión
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+            // Propagar cookies al request (para otros middlewares)
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            )
+            // Crear nueva respuesta con las cookies actualizadas
+            supabaseResponse = NextResponse.next({ request })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            )
+          },
         },
-        setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-          // Propagar cookies al request (para otros middlewares)
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          // Crear nueva respuesta con las cookies actualizadas
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
+      }
+    )
+
+    // Validar sesión (server-side, seguro)
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    // Log para debugging
+    if (error) {
+      console.warn('[middleware] Error validating session:', error.message)
     }
-  )
 
-  // Validar sesión (server-side, seguro)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    // Sin sesión en ruta protegida → redirigir a /login
+    if (!user) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      // Preservar la URL original para redirigir después del login
+      loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+      return NextResponse.redirect(loginUrl)
+    }
 
-  // Sin sesión en ruta protegida → redirigir a /login
-  if (!user) {
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/login'
-    // Preservar la URL original para redirigir después del login
-    loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
+    // Importante: devolver supabaseResponse (no NextResponse.next())
+    // para que las cookies de sesión actualizadas se propaguen
+    return supabaseResponse
+  } catch (error) {
+    console.error('[middleware] Unexpected error:', error)
+    // En caso de error, permitir el paso para evitar bucles infinitos
+    // La validación ocurrirá en los Server Components
+    return supabaseResponse
   }
-
-  // Importante: devolver supabaseResponse (no NextResponse.next())
-  // para que las cookies de sesión actualizadas se propaguen
-  return supabaseResponse
 }
 
 export const config = {
