@@ -38,7 +38,7 @@ function renderMarkdown(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<!\n)\*(?!\*)(.*?)\*(?!\*)/g, '<em>$1</em>')
     .replace(/^[\*\-] (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/gs, (m) => `<ul class="list-disc list-inside space-y-1 my-1">${m}</ul>`)
+    .replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul class="list-disc list-inside space-y-1 my-1">${m}</ul>`)
     .replace(/\n{2,}/g, '</p><p class="mt-2">')
     .replace(/\n/g, '<br/>')
 }
