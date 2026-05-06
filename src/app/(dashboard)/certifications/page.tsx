@@ -12,6 +12,7 @@ import {
   X,
   Lock,
   BadgeCheck,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -297,9 +298,20 @@ export default function CertificationsPage() {
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">{cert.document.name}</p>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">{cert.document.company?.name || 'N/A'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(cert.createdAt).toLocaleDateString('es-CL')}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(cert.createdAt).toLocaleDateString('es-CL')}
+                    </p>
+                    <a
+                      href={`/verify/${cert.verificationCode}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80 transition-colors"
+                      title="Ver certificado público"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
                 </div>
                 <p className="text-xs font-mono text-muted-foreground truncate">{cert.sha256Hash}</p>
               </motion.div>
