@@ -15,6 +15,7 @@ interface Document {
   createdAt: string
   status: string
   sizeBytes: number
+  company?: { name: string }
 }
 
 const levelMap: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
@@ -36,15 +37,43 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('Todos')
   const [search, setSearch] = useState('')
+  const [role, setRole] = useState('')
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const router = useRouter()
 
   useEffect(() => {
-    fetch('/api/documents')
+    async function load() {
+      setLoading(true)
+      try {
+        const meRes = await fetch('/api/auth/me').then(res => res.json())
+        const currentRole = meRes?.data?.role || ''
+        setRole(currentRole)
+
+        if (currentRole === 'NOTARY') {
+          const compRes = await fetch('/api/companies').then(res => res.json())
+          setCompanies(compRes.data || [])
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    let url = '/api/documents'
+    if (selectedCompanyId) {
+      url += `?companyId=${selectedCompanyId}`
+    }
+    
+    fetch(url)
       .then(res => res.json())
       .then(data => setDocuments(data.data?.documents || []))
       .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  }, [selectedCompanyId])
 
   const filtered = documents.filter(d => {
     const matchesFilter = activeFilter === 'Todos' || d.confidentialityLevel.toLowerCase() === activeFilter.toLowerCase()
@@ -81,6 +110,20 @@ export default function DocumentsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar documentos..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        
+        {role === 'NOTARY' && (
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer max-w-[200px]"
+          >
+            <option value="">Todas las empresas</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+
         <div className="flex gap-2 flex-wrap">
           {filters.map(f => (
             <Button
@@ -120,9 +163,14 @@ export default function DocumentsPage() {
                 onClick={() => router.push(`/documents/${doc.id}`)}
               >
                 <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium text-card-foreground">{doc.name}</span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-sm font-medium text-card-foreground truncate max-w-[200px] sm:max-w-[300px]">{doc.name}</span>
+                    </div>
+                    {role === 'NOTARY' && doc.company && (
+                      <span className="text-[10px] text-muted-foreground ml-6 uppercase font-semibold tracking-wider">{doc.company.name}</span>
+                    )}
                   </div>
                 </td>
                 <td className="py-3 px-4">
@@ -160,9 +208,14 @@ export default function DocumentsPage() {
             onClick={() => router.push(`/documents/${doc.id}`)}
           >
             <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-card-foreground">{doc.name}</span>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-sm font-medium text-card-foreground truncate">{doc.name}</span>
+                </div>
+                {role === 'NOTARY' && doc.company && (
+                  <span className="text-[10px] text-muted-foreground ml-6 uppercase font-semibold tracking-wider">{doc.company.name}</span>
+                )}
               </div>
               <StatusBadge variant={levelMap[doc.confidentialityLevel] || 'neutral'}>
                 {levelLabel[doc.confidentialityLevel] || doc.confidentialityLevel}

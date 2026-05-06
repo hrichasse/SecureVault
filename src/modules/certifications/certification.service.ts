@@ -8,7 +8,8 @@ export async function certifyDocument(
   documentId: string,
   userId: string,
   companyId: string,
-  notaryLicenseNumber?: string
+  notaryLicenseNumber?: string,
+  observations?: string
 ) {
   // 1. Obtener documento para extraer el hash SHA-256 ya calculado
   const document = await prisma.document.findFirst({
@@ -47,6 +48,7 @@ export async function certifyDocument(
           sha256Hash: document.sha256Hash,
           notaryLicenseNumber: notaryLicenseNumber || null,
           signatureProvided: !!notaryLicenseNumber,
+          observations: observations || null,
         },
       },
     })
@@ -55,11 +57,11 @@ export async function certifyDocument(
   })
 }
 
-export async function getCertifications(companyId: string) {
+export async function getCertifications(companyId?: string) {
   return prisma.certification.findMany({
-    where: { document: { companyId } },
+    where: companyId ? { document: { companyId } } : undefined,
     include: {
-      document: { select: { name: true, confidentialityLevel: true } },
+      document: { select: { name: true, confidentialityLevel: true, company: { select: { name: true } } } },
       certifiedBy: { select: { name: true, email: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -93,10 +95,10 @@ export async function verifyCertification(code: string) {
   return cert
 }
 
-export async function getPendingCertificationDocuments(companyId: string) {
+export async function getPendingCertificationDocuments(companyId?: string) {
   return prisma.document.findMany({
     where: {
-      companyId,
+      ...(companyId ? { companyId } : {}),
       status: { not: 'DELETED' },
       certifications: {
         none: { isValid: true },
@@ -108,6 +110,7 @@ export async function getPendingCertificationDocuments(companyId: string) {
       originalName: true,
       createdAt: true,
       confidentialityLevel: true,
+      company: { select: { name: true } },
       uploadedBy: {
         select: { id: true, name: true },
       },

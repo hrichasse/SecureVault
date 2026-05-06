@@ -9,6 +9,8 @@ import { ConfidentialityBadge } from '@/components/documents/ConfidentialityBadg
 import { RequestAccessButton } from '@/components/documents/RequestAccessButton'
 import { ReportIncidentButton } from '@/components/incidents/ReportIncidentButton'
 import { CertifyButton } from '@/components/documents/CertifyButton'
+import { DeleteDocumentButton } from '@/components/documents/DeleteDocumentButton'
+import { ChangeClassificationForm } from '@/components/documents/ChangeClassificationForm'
 import type { UserRole } from '@/types'
 
 export const metadata: Metadata = { title: 'Detalle del documento' }
@@ -147,6 +149,13 @@ export default async function DocumentDetailPage({
                 style={{ width: `${Math.min((document.classificationScore / 12) * 100, 100)}%` }}
               />
             </div>
+            
+            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+              <ChangeClassificationForm 
+                documentId={document.id} 
+                currentLevel={document.confidentialityLevel} 
+              />
+            )}
           </div>
 
           {/* Actions */}
@@ -163,9 +172,15 @@ export default async function DocumentDetailPage({
               <RequestAccessButton documentId={document.id} />
             )}
             
-            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+            {dbUser.role === 'NOTARY' && (
               <div className="pt-2">
                 <CertifyButton documentId={document.id} />
+              </div>
+            )}
+            
+            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+              <div className="pt-2">
+                <DeleteDocumentButton documentId={document.id} />
               </div>
             )}
 

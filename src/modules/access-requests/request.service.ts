@@ -241,7 +241,7 @@ export async function hasActivePermission(
   userId: string,
   role: UserRole
 ): Promise<boolean> {
-  if (role === 'ADMIN' || role === 'ADMIN_COMPANY') return true
+  if (role === 'ADMIN' || role === 'ADMIN_COMPANY' || role === 'NOTARY') return true
 
   const permission = await prisma.documentPermission.findFirst({
     where: {

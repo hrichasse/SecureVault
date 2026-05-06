@@ -26,7 +26,7 @@ export interface CreateDocumentInput {
 }
 
 export interface ListDocumentsOptions {
-  companyId: string
+  companyId?: string
   status?: DocumentStatus
   confidentialityLevel?: ConfidentialityLevel
   page?: number
@@ -40,7 +40,7 @@ export async function listDocuments(options: ListDocumentsOptions) {
   const skip = (page - 1) * limit
 
   const where = {
-    companyId,
+    ...(companyId ? { companyId } : {}),
     ...(status ? { status } : { status: { not: 'DELETED' as DocumentStatus } }),
     ...(confidentialityLevel && { confidentialityLevel }),
   }
@@ -49,6 +49,7 @@ export async function listDocuments(options: ListDocumentsOptions) {
     prisma.document.findMany({
       where,
       include: {
+        company: { select: { name: true } },
         uploadedBy: { select: { id: true, name: true, email: true } },
         _count: { select: { accessRequests: true, certifications: true } },
       },

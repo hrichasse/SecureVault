@@ -7,6 +7,7 @@ const createSchema = z.object({
   documentId: z.string().min(1),
   notaryLicenseNumber: z.string().min(4).optional(),
   signPassword: z.string().min(8).optional(),
+  observations: z.string().optional(),
 })
 
 export async function GET(request: Request) {
@@ -16,16 +17,20 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const includePending = searchParams.get('pending') === 'true'
+    const targetCompanyId = searchParams.get('companyId')
+
+    // Si no es notario, solo puede ver lo de su propia empresa
+    const finalCompanyId = user.role === 'NOTARY' && targetCompanyId ? targetCompanyId : (user.role === 'NOTARY' ? undefined : user.companyId)
 
     if (includePending) {
       if (user.role !== 'ADMIN' && user.role !== 'ADMIN_COMPANY' && user.role !== 'NOTARY') {
         return NextResponse.json({ error: 'No tienes permisos para ver documentos pendientes' }, { status: 403 })
       }
-      const pendingDocuments = await getPendingCertificationDocuments(user.companyId)
+      const pendingDocuments = await getPendingCertificationDocuments(finalCompanyId)
       return NextResponse.json({ data: pendingDocuments }, { status: 200 })
     }
 
-    const certifications = await getCertifications(user.companyId)
+    const certifications = await getCertifications(finalCompanyId)
 
     return NextResponse.json({ data: certifications }, { status: 200 })
   } catch (error) {
@@ -63,7 +68,23 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await certifyDocument(parsed.data.documentId, user.id, user.companyId, parsed.data.notaryLicenseNumber)
+    // Validar y resolver companyId para la certificación
+    // Si el usuario es NOTARY, la certificación se hace sobre la empresa a la que pertenece el documento.
+    let docCompanyId = user.companyId
+    if (user.role === 'NOTARY') {
+      const { prisma } = await import('@/lib/prisma')
+      const targetDoc = await prisma.document.findUnique({ where: { id: parsed.data.documentId }, select: { companyId: true } })
+      if (!targetDoc) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
+      docCompanyId = targetDoc.companyId
+    }
+
+    const result = await certifyDocument(
+      parsed.data.documentId, 
+      user.id, 
+      docCompanyId, 
+      parsed.data.notaryLicenseNumber,
+      parsed.data.observations
+    )
 
     return NextResponse.json({ data: result }, { status: 201 })
   } catch (error: unknown) {
