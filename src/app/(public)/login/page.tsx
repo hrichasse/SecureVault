@@ -5,7 +5,7 @@ import { LoginForm } from '@/components/auth/LoginForm'
 import { Shield, Lock } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión — SecureVault',
+  title: 'Iniciar Sesión — SecureVault',
 }
 
 export default async function LoginPage() {
