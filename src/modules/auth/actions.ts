@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { logEvent } from '@/modules/audit/audit.service'
+import { PLAN_CONFIG } from '@/modules/subscriptions/subscriptions.service'
 
 // ── Schemas de validación ─────────────────────────────────────
 
@@ -27,7 +28,7 @@ const registerSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Ingresa un email válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
-  role: z.enum(['ADMIN', 'ADMIN_COMPANY', 'NOTARY']),
+  role: z.enum(['ADMIN_COMPANY', 'NOTARY']),
   companyName: z.string().max(200).optional(),
   companyRut: z.string().max(30).optional(),
   companyAddress: z.string().max(300).optional(),
@@ -104,6 +105,11 @@ export async function registerAction(
     companyBusinessLine,
   } = parsed.data
 
+  // Seguridad: el rol ADMIN nunca puede ser auto-registrado
+  if ((role as string) === 'ADMIN') {
+    return { error: 'El rol de Administrador del Sistema no puede ser registrado por esta vía.' }
+  }
+
   if (role === 'ADMIN_COMPANY') {
     if (!companyName || !companyRut || !companyAddress || !companyBusinessLine) {
       return { error: 'Para Administrador de Empresa debes completar nombre, RUT, dirección y giro.' }
@@ -154,6 +160,16 @@ export async function registerAction(
           },
         })
         targetCompanyId = company.id
+        // Crear suscripción FREE automáticamente para la nueva empresa dentro de la transacción
+        await tx.subscription.create({
+          data: {
+            companyId: company.id,
+            plan: 'FREE',
+            status: 'ACTIVE',
+            maxUsers: PLAN_CONFIG.FREE.maxUsers,
+            maxDocuments: PLAN_CONFIG.FREE.maxDocuments,
+          },
+        })
       } else {
         const secureVaultCompany = await tx.company.upsert({
           where: { email: 'admin@securevault.cl' },
@@ -233,4 +249,125 @@ export async function logoutAction(): Promise<void> {
 
   await supabase.auth.signOut()
   redirect('/login')
+}
+// ── completeOAuthRegistrationAction ─────────────────────────────
+
+const oauthCompleteSchema = z.object({
+  role: z.enum(['ADMIN_COMPANY', 'NOTARY']),
+  companyName: z.string().max(200).optional(),
+  companyRut: z.string().max(30).optional(),
+  companyAddress: z.string().max(300).optional(),
+  companyBusinessLine: z.string().max(200).optional(),
+})
+
+export async function completeOAuthRegistrationAction(
+  formData: FormData
+): Promise<{ error: string } | void> {
+  const raw = {
+    role: ((formData.get('role') as string) || 'ADMIN_COMPANY').trim(),
+    companyName: (formData.get('companyName') as string)?.trim() || undefined,
+    companyRut: (formData.get('companyRut') as string)?.trim() || undefined,
+    companyAddress: (formData.get('companyAddress') as string)?.trim() || undefined,
+    companyBusinessLine: (formData.get('companyBusinessLine') as string)?.trim() || undefined,
+  }
+
+  const parsed = oauthCompleteSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
+  }
+
+  const { role, companyName, companyRut, companyAddress, companyBusinessLine } = parsed.data
+
+  if (role === 'ADMIN_COMPANY') {
+    if (!companyName || !companyRut || !companyAddress || !companyBusinessLine) {
+      return { error: 'Para Administrador de Empresa debes completar nombre, RUT, dirección y giro.' }
+    }
+  }
+
+  const supabase = await createClient()
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !authUser) {
+    return { error: 'Sesión no válida o expirada. Por favor, inicia sesión nuevamente.' }
+  }
+
+  const name = authUser.user_metadata?.full_name
+    || authUser.user_metadata?.name
+    || authUser.email?.split('@')[0]
+    || 'Usuario'
+  const email = authUser.email!
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      let targetCompanyId = ''
+
+      if (role === 'ADMIN_COMPANY') {
+        const company = await tx.company.create({
+          data: {
+            name: companyName!,
+            email,
+            rut: companyRut,
+            address: companyAddress,
+            businessLine: companyBusinessLine,
+            adminName: name,
+          },
+        })
+        targetCompanyId = company.id
+        // Crear suscripción FREE automáticamente para la nueva empresa dentro de la transacción
+        await tx.subscription.create({
+          data: {
+            companyId: company.id,
+            plan: 'FREE',
+            status: 'ACTIVE',
+            maxUsers: PLAN_CONFIG.FREE.maxUsers,
+            maxDocuments: PLAN_CONFIG.FREE.maxDocuments,
+          },
+        })
+      } else {
+        const secureVaultCompany = await tx.company.upsert({
+          where: { email: 'admin@securevault.cl' },
+          update: { name: 'Secure Vault' },
+          create: {
+            name: 'Secure Vault',
+            email: 'admin@securevault.cl',
+            rut: '76.000.000-0',
+            address: 'Santiago, Chile',
+            businessLine: 'Software y Ciberseguridad',
+            adminName: 'Equipo Secure Vault',
+            description: 'Empresa base del sistema SecureVault',
+          },
+        })
+        targetCompanyId = secureVaultCompany.id
+      }
+
+      await tx.user.create({
+        data: {
+          supabaseId: authUser.id,
+          email,
+          name,
+          role,
+          companyId: targetCompanyId,
+        },
+      })
+    })
+  } catch (dbError: unknown) {
+    console.error('[completeOAuth] DB error:', dbError)
+    const pgError = dbError as { code?: string }
+    if (pgError?.code === 'P2002') {
+      return { error: 'Ya existe una cuenta con este correo.' }
+    }
+    return { error: 'Error al configurar tu cuenta. Por favor contacta soporte.' }
+  }
+
+  const newUser = await prisma.user.findUnique({ where: { supabaseId: authUser.id }, select: { id: true, companyId: true } })
+  if (newUser) {
+    await logEvent({
+      action: 'REGISTER',
+      userId: newUser.id,
+      companyId: newUser.companyId,
+      metadata: { name, role, companyName: companyName ?? 'Secure Vault', source: 'OAuth' },
+    })
+  }
+
+  redirect('/dashboard')
 }

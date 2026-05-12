@@ -86,6 +86,19 @@ enum AuditAction {
   REVOKE_PERMISSION
 }
 
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
 // ============================================================
 // MODELOS
 // ============================================================
@@ -102,10 +115,11 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users      User[]
-  documents  Document[]
-  incidents  Incident[]
-  auditLogs  AuditLog[]
+  users         User[]
+  documents     Document[]
+  incidents     Incident[]
+  auditLogs     AuditLog[]
+  subscription  Subscription?
 }
 
 model User {
@@ -243,4 +257,19 @@ model AuditLog {
   @@index([companyId, createdAt])
   @@index([documentId])
   @@index([userId])
+}
+
+model Subscription {
+  id            String             @id @default(cuid())
+  companyId     String             @unique
+  company       Company            @relation(fields: [companyId], references: [id])
+  plan          SubscriptionPlan   @default(FREE)
+  status        SubscriptionStatus @default(ACTIVE)
+  maxUsers      Int                @default(5)
+  maxDocuments  Int                @default(100)
+  expiresAt     DateTime?
+  tbkToken      String?            // token Transbank del último pago exitoso
+  tbkOrderId    String?            // buyOrder del pago
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }

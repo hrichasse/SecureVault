@@ -2,27 +2,28 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { LoginForm } from '@/components/auth/LoginForm'
-import { Shield, Lock } from 'lucide-react'
+import { OAuthCompleteForm } from '@/components/auth/OAuthCompleteForm'
+import { Shield, CheckCircle } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Iniciar sesión — SecureVault',
+  title: 'Completar registro — SecureVault',
 }
 
-export default async function LoginPage() {
+export default async function RegisterCompletePage() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (user) {
-    const dbUser = await prisma.user.findUnique({ where: { supabaseId: user.id } })
-    if (dbUser) {
-      redirect('/dashboard')
-    } else {
-      // Estado: usuario en Supabase pero sin perfil en BD (viene de OAuth nuevo)
-      redirect('/register/complete')
-    }
+  // Si no hay usuario de Supabase, no puede estar en este flujo
+  if (!user) {
+    redirect('/login')
+  }
+
+  // Si ya tiene perfil en BD, no necesita completar el perfil
+  const dbUser = await prisma.user.findUnique({ where: { supabaseId: user.id } })
+  if (dbUser) {
+    redirect('/dashboard')
   }
 
   return (
@@ -46,20 +47,16 @@ export default async function LoginPage() {
         </div>
         <div className="relative z-10 text-center space-y-6">
           <div className="h-16 w-16 rounded-2xl bg-primary-foreground/20 backdrop-blur flex items-center justify-center mx-auto">
-            <Shield className="h-8 w-8 text-primary-foreground" />
+            <CheckCircle className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold text-primary-foreground">SecureVault Control</h1>
+          <h1 className="text-4xl font-bold text-primary-foreground">¡Casi listo!</h1>
           <p className="text-lg text-primary-foreground/80 max-w-md">
-            Plataforma empresarial para la gestión segura de documentos corporativos
+            Tu cuenta de Google fue vinculada con éxito. Solo necesitamos algunos datos adicionales de tu empresa para configurar tu bóveda segura.
           </p>
-          <div className="flex items-center gap-2 justify-center text-primary-foreground/60 text-sm">
-            <Lock className="h-4 w-4" />
-            <span>Cifrado SHA-256 · Auditoría completa · Certificación digital</span>
-          </div>
         </div>
       </div>
 
-      {/* Right panel — login form */}
+      {/* Right panel — complete form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
@@ -70,16 +67,14 @@ export default async function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-foreground">Iniciar sesión</h2>
-            <p className="text-muted-foreground text-sm">Accede a tu plataforma de gestión documental segura</p>
+            <h2 className="text-2xl font-bold text-foreground">Completa tu perfil</h2>
+            <p className="text-muted-foreground text-sm">
+              Ingresa los datos de tu organización para habilitar las funcionalidades empresariales de SecureVault.
+            </p>
           </div>
 
-          <LoginForm />
-
-          <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-            <Lock className="h-3 w-3" />
-            Plataforma segura empresarial · Conexión cifrada
-          </p>
+          <OAuthCompleteForm />
+          
         </div>
       </div>
     </div>
