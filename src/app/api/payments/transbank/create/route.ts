@@ -67,9 +67,10 @@ export async function POST(request: NextRequest) {
     // 4. Crear la transacción
     const tx = getWebpayTx()
     const buyOrder = `SV-${dbUser.companyId.slice(0, 8)}-${Date.now()}`
-    const sessionId = `${plan}_${dbUser.companyId}`
+    const sessionId = `sv-${dbUser.id.slice(0, 8)}`
     const amount = PLAN_PRICES[plan]
-    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/transbank/callback`
+    // plan y companyId van como query params en la returnUrl (Transbank los preserva)
+    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/transbank/callback?plan=${plan}&companyId=${dbUser.companyId}`
 
     const response: any = await tx.create(buyOrder, sessionId, amount, returnUrl)
 

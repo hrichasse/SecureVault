@@ -2,8 +2,8 @@
  * GET|POST /api/payments/transbank/callback
  *
  * Callback de Transbank después del pago.
- * Transbank puede enviar el token_ws por GET (query string) o por POST (form body).
- * El plan y companyId se extraen del sessionId codificado al crear la transacción.
+ * Transbank redirige aquí con token_ws (por GET o POST).
+ * plan y companyId vienen como query params en la returnUrl.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -33,6 +33,12 @@ function getWebpayTx() {
 
 async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url)
+
+  // plan y companyId vienen como query params en la returnUrl
+  const plan = searchParams.get('plan') as SubscriptionPlan | null
+  const companyId = searchParams.get('companyId')
+
+  // token_ws puede llegar por GET (query) o por POST (form body)
   let tokenWs: string | null = searchParams.get('token_ws')
   let tbkToken: string | null = searchParams.get('TBK_TOKEN')
 
@@ -47,44 +53,40 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  console.log('[Transbank Callback]', { method: request.method, hasToken: !!tokenWs, hasTbk: !!tbkToken })
+
 
   // TBK_TOKEN (sin token_ws) = usuario canceló
   if (tbkToken && !tokenWs) {
     return NextResponse.redirect(`${BASE_URL}/settings/subscription?cancelled=true`)
   }
 
-  if (!tokenWs) {
-    return NextResponse.redirect(`${BASE_URL}/settings/subscription?error=missing_token`)
+  // Validar que tenemos todos los datos necesarios
+  if (!tokenWs || !plan || !companyId) {
+    return NextResponse.redirect(`${BASE_URL}/settings/subscription?error=missing_params`)
   }
 
   try {
     const tx = getWebpayTx()
     const result: any = await tx.commit(tokenWs)
 
-    console.log('[Transbank] Commit result:', JSON.stringify(result))
 
-    // Extraer plan y companyId del sessionId (formato: "PRO_<companyId>")
-    const sid: string = result.sessionId || ''
-    const underscoreIdx = sid.indexOf('_')
-    const plan = sid.substring(0, underscoreIdx) as SubscriptionPlan
-    const companyId = sid.substring(underscoreIdx + 1)
 
-    if (!plan || !companyId) {
-      console.error('[Transbank] Invalid sessionId:', sid)
-      return NextResponse.redirect(`${BASE_URL}/settings/subscription?error=invalid_session`)
-    }
+    // Transbank SDK puede devolver snake_case o camelCase dependiendo de la versión
+    const respCode = result.response_code ?? result.responseCode
+    const respStatus = result.status
+    const respBuyOrder = result.buy_order ?? result.buyOrder
+    const respAmount = result.amount
 
     // responseCode 0 = pago autorizado
-    if (result.responseCode === 0 && result.status === 'AUTHORIZED') {
-      await upgradeSubscription(companyId, plan, tokenWs, result.buyOrder)
+    if (respCode === 0 && respStatus === 'AUTHORIZED') {
+      await upgradeSubscription(companyId, plan, tokenWs, respBuyOrder)
       return NextResponse.redirect(
-        `${BASE_URL}/settings/subscription?success=true&plan=${plan}&amount=${result.amount}`
+        `${BASE_URL}/settings/subscription?success=true&plan=${plan}&amount=${respAmount}`
       )
     } else {
-      console.error('[Transbank] Payment rejected:', result)
+      console.error('[Transbank] Payment rejected:', { respCode, respStatus, result })
       return NextResponse.redirect(
-        `${BASE_URL}/settings/subscription?error=payment_rejected&code=${result.responseCode}`
+        `${BASE_URL}/settings/subscription?error=payment_rejected&code=${respCode}`
       )
     }
   } catch (error) {
