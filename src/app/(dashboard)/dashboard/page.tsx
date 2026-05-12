@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { FileText, Send, AlertTriangle, ShieldCheck, Clock, TrendingUp } from 'lucide-react'
 import { StatCard } from '@/components/ui/stat-card'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { SecurityScoreCard } from '@/components/dashboard/SecurityScoreCard'
 import { motion } from 'framer-motion'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
@@ -208,27 +209,33 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      <motion.div variants={item} initial="hidden" animate="show" className="bg-card rounded-xl border border-border p-4 sm:p-5 shadow-card">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Actividad reciente</h3>
-        </div>
-        <div className="space-y-3">
-          {activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No hay actividad reciente</p>
-          ) : (
-            activity.map((act, i) => (
-              <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 py-2 border-b border-border last:border-0">
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                  <StatusBadge variant={act.type}>{act.action}</StatusBadge>
-                  <span className="text-xs sm:text-sm text-card-foreground">{act.detail}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div variants={item} initial="hidden" animate="show" className="lg:col-span-2 bg-card rounded-xl border border-border p-4 sm:p-5 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Actividad reciente</h3>
+          </div>
+          <div className="space-y-3">
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay actividad reciente</p>
+            ) : (
+              activity.map((act, i) => (
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <StatusBadge variant={act.type}>{act.action}</StatusBadge>
+                    <span className="text-xs sm:text-sm text-card-foreground">{act.detail}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap pl-0 sm:pl-2">{act.time}</span>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap pl-0 sm:pl-2">{act.time}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </motion.div>
+              ))
+            )}
+          </div>
+        </motion.div>
+
+        <motion.div variants={item} initial="hidden" animate="show" className="lg:col-span-1">
+          <SecurityScoreCard />
+        </motion.div>
+      </div>
     </div>
   )
 }
