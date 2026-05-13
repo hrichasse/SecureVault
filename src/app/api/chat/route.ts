@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/modules/auth/auth.service'
 import { prisma } from '@/lib/prisma'
+import { semanticSearch } from '@/lib/embeddings'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GEMINI_URL =
@@ -200,7 +201,9 @@ REGLAS:
 - Cuando menciones datos del sistema, cítalos con exactitud (nombres, niveles, fechas).
 - Sé breve: máximo 4-5 oraciones. Usa listas cuando sean 2+ items.
 - Si no encuentras algo en los datos, díselo honestamente.
-- Usa emojis con moderación para ser amigable.`
+- Usa emojis con moderación para ser amigable.
+- Si encuentras información relevante de los documentos indexados, cítala con precisión e indica de qué documento proviene.
+- Cuando el usuario pregunte sobre el contenido de un documento, busca primero en los fragmentos RAG proporcionados.`
 }
 
 // ─── Fallback inteligente (cuando Gemini no está disponible) ─────────────────
@@ -324,6 +327,20 @@ export async function POST(req: NextRequest) {
       ? `${dataCtx}\n\n${searchCtx}`
       : dataCtx
 
+    // 4b. Búsqueda semántica RAG en los documentos indexados
+    let ragContext = ''
+    try {
+      const ragResults = await semanticSearch(lastUserMessage, userCtx.companyId, 4)
+      if (ragResults.length > 0) {
+        ragContext = '\n\nCONTENIDO RELEVANTE DE DOCUMENTOS (RAG):\n' +
+          ragResults.map(r => `[Doc: "${r.documentName}" | Relevancia: ${(r.similarity * 100).toFixed(0)}%]\n${r.content}`).join('\n---\n')
+      }
+    } catch (ragErr) {
+      console.warn('[Chat RAG] Semantic search failed:', ragErr)
+    }
+
+    const completeDataCtx = ragContext ? `${fullDataCtx}${ragContext}` : fullDataCtx
+
     // 4. Construir conversación para Gemini
     const geminiContents = messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
@@ -336,7 +353,7 @@ export async function POST(req: NextRequest) {
     try {
       const body = {
         system_instruction: {
-          parts: [{ text: buildSystemPrompt(userCtx, fullDataCtx) }],
+          parts: [{ text: buildSystemPrompt(userCtx, completeDataCtx) }],
         },
         contents: geminiContents,
         generationConfig: {

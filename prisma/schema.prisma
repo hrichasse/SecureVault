@@ -167,6 +167,7 @@ model Document {
   incidents      Incident[]
   certifications Certification[]
   auditLogs      AuditLog[]
+  chunks         DocumentChunk[]
 }
 
 model DocumentPermission {
@@ -273,3 +274,17 @@ model Subscription {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 }
+
+// ── RAG: Chunks de documentos para búsqueda semántica ──────
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int      // orden del chunk dentro del documento
+  content    String   // texto plano del chunk
+  embedding  Json     // vector de embedding (array de floats)
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+}
+
