@@ -37,19 +37,17 @@ jobs:
           npm ci
           npm run build
 
-      - name: Create deployment package
+      - name: Prepare standalone package
         run: |
-          # Remove dev dependencies, keep only production
-          rm -rf node_modules
-          npm ci --omit=dev
-          # Create zip with only what Azure needs
-          zip -r release.zip .next package.json package-lock.json node_modules next.config.* public prisma -x "*.git*"
+          # Copy static assets into standalone
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip
+          path: .next/standalone/
 
   deploy:
     runs-on: ubuntu-latest
@@ -64,9 +62,6 @@ jobs:
         with:
           name: node-app
 
-      - name: Unzip artifact
-        run: unzip -o release.zip -d deploy
-
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -80,4 +75,4 @@ jobs:
         with:
           app-name: 'securevault-ai'
           slot-name: 'Production'
-          package: deploy
+          package: .
