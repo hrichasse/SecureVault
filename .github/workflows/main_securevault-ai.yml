@@ -42,9 +42,10 @@ jobs:
           # Copy static assets into standalone
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public
-          # Copy Prisma generated client (native binary not bundled by standalone)
-          mkdir -p .next/standalone/node_modules/.prisma
-          cp -r node_modules/.prisma/client .next/standalone/node_modules/.prisma/client
+          # Save Prisma generated client to a VISIBLE directory (not .prisma hidden dir)
+          # Oryx strips hidden dirs from node_modules.tar.gz, so we save it separately
+          mkdir -p .next/standalone/prisma_generated/client
+          cp -r node_modules/.prisma/client/* .next/standalone/prisma_generated/client/
           # Copy prisma schema (needed for runtime)
           mkdir -p .next/standalone/prisma
           cp -r prisma/schema.prisma .next/standalone/prisma/schema.prisma
