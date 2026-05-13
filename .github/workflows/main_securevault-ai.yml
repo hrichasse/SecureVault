@@ -37,14 +37,12 @@ jobs:
           npm ci
           npm run build
 
-      - name: Zip artifact for deployment
-        run: zip -r release.zip . -x "*.git*" -x "node_modules/*"
-
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip
+          path: .
+          include-hidden-files: true
 
   deploy:
     runs-on: ubuntu-latest
@@ -72,4 +70,4 @@ jobs:
         with:
           app-name: 'securevault-ai'
           slot-name: 'Production'
-          package: release.zip
+          package: .
