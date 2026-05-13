@@ -4,12 +4,19 @@
  * Callback OAuth de Supabase (Google, GitHub, etc.)
  * Intercambia el code PKCE por una sesión, luego:
  * - Si el usuario ya existe en Prisma → /dashboard
- * - Si es nuevo → crea usuario con rol ADMIN_COMPANY + empresa + suscripción FREE → /dashboard
+ * - Si es nuevo → redirigir a completar registro → /register/complete
+ *
+ * IMPORTANTE: Se usa createServerClient directamente (no createClient())
+ * para poder aplicar las cookies de sesión sobre el propio NextResponse.redirect().
+ * Si se usa createClient() (basado en cookies() de next/headers), las cookies
+ * quedan en el contexto interno de Next.js y NO se propagan al redirect response,
+ * dejando al browser sin sesión al llegar al destino.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { prisma } from '@/lib/prisma'
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -24,7 +31,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
-  const supabase = await createClient()
+  // Recopilar las cookies que Supabase quiere escribir para aplicarlas
+  // directamente sobre el response de redirect (no via cookies() de next/headers)
+  const pendingCookies: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          pendingCookies.push(...cookiesToSet)
+        },
+      },
+      cookieOptions: {
+        maxAge: 6 * 60 * 60,
+      },
+    }
+  )
 
   // Intercambiar el code por una sesión
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
@@ -58,11 +85,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (existingUser) {
-    // Usuario conocido → dashboard directo
-    return NextResponse.redirect(`${origin}/dashboard`)
-  }
+  const redirectUrl = existingUser
+    ? `${origin}/dashboard`
+    : `${origin}/register/complete`
 
-  // Usuario nuevo (primer login con Google) → redirigir a completar registro
-  return NextResponse.redirect(`${origin}/register/complete`)
+  // Crear el redirect y aplicar las cookies de sesión sobre él
+  const response = NextResponse.redirect(redirectUrl)
+  pendingCookies.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
+  })
+
+  return response
 }
