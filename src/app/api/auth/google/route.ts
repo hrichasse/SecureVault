@@ -10,10 +10,14 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  // En Azure App Service el proxy interno usa HTTP, por lo que request.nextUrl.origin
-  // devuelve "http://" y Supabase rechaza el redirectTo al no coincidir con las URLs
-  // permitidas (todas https://). Usar NEXT_PUBLIC_APP_URL garantiza siempre HTTPS.
-  const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
+  // Azure App Service termina TLS en el proxy y expone los headers x-forwarded-*.
+  // request.nextUrl.origin devuelve "http://" (protocolo interno) y NEXT_PUBLIC_APP_URL
+  // solo se bake en código cliente en Next.js App Router, no en route handlers.
+  // Usar x-forwarded-proto/host es la forma correcta de reconstruir el origin real.
+  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0].trim()
+    ?? request.nextUrl.protocol.replace(':', '')
+  const host = request.headers.get('x-forwarded-host') ?? request.nextUrl.host
+  const origin = `${proto}://${host}`
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',

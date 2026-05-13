@@ -19,8 +19,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // En Azure el proxy usa HTTP internamente; NEXT_PUBLIC_APP_URL garantiza HTTPS.
-  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
+  // Azure App Service termina TLS en el proxy y expone los headers x-forwarded-*.
+  // new URL(request.url).origin devuelve "http://" (protocolo interno del proxy).
+  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0].trim()
+    ?? new URL(request.url).protocol.replace(':', '')
+  const host = request.headers.get('x-forwarded-host') ?? new URL(request.url).host
+  const origin = `${proto}://${host}`
   const code = searchParams.get('code')
   const errorParam = searchParams.get('error')
 
