@@ -33,7 +33,6 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_APP_URL: https://securevault-ai.azurewebsites.net
-          NODE_ENV: production
         run: |
           npm ci
           npm run build
