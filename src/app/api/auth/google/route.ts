@@ -10,7 +10,10 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const origin = request.nextUrl.origin
+  // En Azure App Service el proxy interno usa HTTP, por lo que request.nextUrl.origin
+  // devuelve "http://" y Supabase rechaza el redirectTo al no coincidir con las URLs
+  // permitidas (todas https://). Usar NEXT_PUBLIC_APP_URL garantiza siempre HTTPS.
+  const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',

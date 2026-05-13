@@ -18,7 +18,9 @@ import { createServerClient } from '@supabase/ssr'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  // En Azure el proxy usa HTTP internamente; NEXT_PUBLIC_APP_URL garantiza HTTPS.
+  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
   const code = searchParams.get('code')
   const errorParam = searchParams.get('error')
 
