@@ -19,12 +19,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // APP_URL se configura como Application Setting en Azure App Service (runtime).
-  const appUrl = process.env.APP_URL
-  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0].trim()
-    ?? new URL(request.url).protocol.replace(':', '')
-  const host = request.headers.get('x-forwarded-host') ?? new URL(request.url).host
-  const origin = appUrl ?? `${proto}://${host}`
+  // Azure App Service provee WEBSITE_HOSTNAME como variable built-in (ej: 'securevault-ai.azurewebsites.net').
+  // Es la fuente más confiable porque no depende de headers de proxy, build time, ni config manual.
+  const azureHostname = process.env.WEBSITE_HOSTNAME
+  const origin = azureHostname
+    ? `https://${azureHostname}`
+    : (process.env.APP_URL ?? new URL(request.url).origin)
   const code = searchParams.get('code')
   const errorParam = searchParams.get('error')
 
