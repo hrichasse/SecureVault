@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { loginAction } from '@/modules/auth/actions'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,24 @@ export function LoginForm() {
     setGoogleLoading(true)
     setError(null)
     try {
-      window.location.href = '/api/auth/google'
+      const supabase = createSupabaseClient()
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+          skipBrowserRedirect: true,
+        },
+      })
+
+      if (error || !data?.url) {
+        throw error ?? new Error('No se recibió URL de Google OAuth.')
+      }
+
+      window.location.assign(data.url)
     } catch {
       setError('No se pudo iniciar el login con Google.')
       setGoogleLoading(false)
