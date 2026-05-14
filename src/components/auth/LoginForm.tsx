@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { loginAction } from '@/modules/auth/actions'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,13 +16,12 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const router = useRouter()
 
   async function handleGoogleLogin() {
     setGoogleLoading(true)
     setError(null)
     try {
-      router.push('/api/auth/google')
+      window.location.href = '/api/auth/google'
     } catch {
       setError('No se pudo iniciar el login con Google.')
       setGoogleLoading(false)

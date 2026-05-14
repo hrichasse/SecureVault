@@ -17,14 +17,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { prisma } from '@/lib/prisma'
 
+function getAppOrigin(request: NextRequest) {
+  const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
+
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/$/, '')
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://securevault-ai.azurewebsites.net'
+  }
+
+  return new URL(request.url).origin
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // Azure App Service provee WEBSITE_HOSTNAME como variable built-in (ej: 'securevault-ai.azurewebsites.net').
-  // Es la fuente más confiable porque no depende de headers de proxy, build time, ni config manual.
-  const azureHostname = process.env.WEBSITE_HOSTNAME
-  const origin = azureHostname
-    ? `https://${azureHostname}`
-    : (process.env.APP_URL ?? new URL(request.url).origin)
+  const origin = getAppOrigin(request)
   const code = searchParams.get('code')
   const errorParam = searchParams.get('error')
 
