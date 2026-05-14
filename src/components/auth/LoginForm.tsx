@@ -23,7 +23,7 @@ export function LoginForm() {
     setError(null)
     try {
       const supabase = createSupabaseClient()
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/api/auth/callback`,
@@ -31,15 +31,12 @@ export function LoginForm() {
             access_type: 'offline',
             prompt: 'consent',
           },
-          skipBrowserRedirect: true,
         },
       })
 
-      if (error || !data?.url) {
-        throw error ?? new Error('No se recibió URL de Google OAuth.')
+      if (error) {
+        throw error
       }
-
-      window.location.assign(data.url)
     } catch {
       setError('No se pudo iniciar el login con Google.')
       setGoogleLoading(false)
