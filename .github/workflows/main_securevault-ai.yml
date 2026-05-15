@@ -50,11 +50,16 @@ jobs:
           mkdir -p .next/standalone/prisma
           cp -r prisma/schema.prisma .next/standalone/prisma/schema.prisma
 
+      - name: Create deployment zip
+        run: |
+          cd .next/standalone
+          zip -r ../../node-app.zip .
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .next/standalone/
+          path: node-app.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -68,6 +73,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
+          path: .
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -82,4 +88,4 @@ jobs:
         with:
           app-name: 'securevault-ai'
           slot-name: 'Production'
-          package: .
+          package: node-app.zip
