@@ -15,6 +15,8 @@ function getAppOrigin(request: NextRequest) {
     return configuredOrigin.replace(/\/$/, '')
   }
 
+  // En Azure App Service puede filtrarse host interno (contenedor:puerto).
+  // Para producción de esta app usamos explícitamente el dominio público.
   if (process.env.NODE_ENV === 'production') {
     return 'https://securevault-ai.azurewebsites.net'
   }

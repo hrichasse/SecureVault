@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { registerAction } from '@/modules/auth/actions'
-import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import { User, Building2, Mail, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,21 +24,9 @@ export function RegisterForm() {
     setGoogleLoading(true)
     setError(null)
     try {
-      const supabase = createSupabaseClient()
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      })
-
-      if (error) {
-        throw error
-      }
+      // Mantener el flujo OAuth en el servidor para que el code_verifier
+      // (PKCE) quede en cookie y pueda intercambiarse en /api/auth/callback.
+      window.location.href = '/api/auth/google'
     } catch {
       setError('No se pudo iniciar el registro con Google.')
       setGoogleLoading(false)
