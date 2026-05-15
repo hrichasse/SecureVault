@@ -9,16 +9,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 function getAppOrigin(request: NextRequest) {
+  const host = request.headers.get('host') ?? ''
+
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    return `http://${host}`
+  }
+
+  if (host.includes('azurewebsites.net')) {
+    return 'https://securevault-ai.azurewebsites.net'
+  }
+
   const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
 
   if (configuredOrigin) {
     return configuredOrigin.replace(/\/$/, '')
-  }
-
-  // En Azure App Service puede filtrarse host interno (contenedor:puerto).
-  // Para producción de esta app usamos explícitamente el dominio público.
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://securevault-ai.azurewebsites.net'
   }
 
   return request.nextUrl.origin
