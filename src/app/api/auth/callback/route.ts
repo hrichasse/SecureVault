@@ -24,17 +24,9 @@ function getAppOrigin(request: NextRequest) {
     return `http://${host}`
   }
 
-  if (host.includes('azurewebsites.net')) {
-    return 'https://securevault-ai.azurewebsites.net'
-  }
-
-  const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
-
-  if (configuredOrigin) {
-    return configuredOrigin.replace(/\/$/, '')
-  }
-
-  return new URL(request.url).origin
+  // En Azure el host puede llegar como contenedor interno (xxxxx:8080).
+  // Para cualquier entorno no-local usamos siempre el dominio público.
+  return 'https://securevault-ai.azurewebsites.net'
 }
 
 export async function GET(request: NextRequest) {
