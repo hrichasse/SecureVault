@@ -12,6 +12,7 @@ import {
   X,
   Lock,
   BadgeCheck,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,7 @@ interface PendingDocument {
   confidentialityLevel: string
   createdAt: string
   uploadedBy: { id: string; name: string }
+  company?: { name: string }
 }
 
 export default function CertificationsPage() {
@@ -43,6 +45,9 @@ export default function CertificationsPage() {
   const [loading, setLoading] = useState(true)
   const [verifyCode, setVerifyCode] = useState('')
   const [verifyResult, setVerifyResult] = useState<'valid' | 'invalid' | null>(null)
+  
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
 
   const [currentRole, setCurrentRole] = useState<string>('')
   const [showCertifyModal, setShowCertifyModal] = useState(false)
@@ -51,6 +56,7 @@ export default function CertificationsPage() {
   const [selectedDocument, setSelectedDocument] = useState<PendingDocument | null>(null)
   const [notaryLicenseNumber, setNotaryLicenseNumber] = useState('')
   const [signPassword, setSignPassword] = useState('')
+  const [observations, setObservations] = useState('')
   const [certifying, setCertifying] = useState(false)
 
   const { toast } = useToast()
@@ -58,12 +64,20 @@ export default function CertificationsPage() {
   async function loadData() {
     setLoading(true)
     try {
+      const url = selectedCompanyId ? `/api/certifications?companyId=${selectedCompanyId}` : '/api/certifications'
       const [certRes, meRes] = await Promise.all([
-        fetch('/api/certifications').then(res => res.json()),
+        fetch(url).then(res => res.json()),
         fetch('/api/auth/me').then(res => res.json()),
       ])
+      
       setCertifications(certRes.data || [])
-      setCurrentRole(meRes?.data?.role || '')
+      const role = meRes?.data?.role || ''
+      setCurrentRole(role)
+
+      if (role === 'NOTARY' && companies.length === 0) {
+        const compRes = await fetch('/api/companies').then(res => res.json())
+        setCompanies(compRes.data || [])
+      }
     } catch {
       toast({ title: 'Error', description: 'No se pudo cargar certificaciones.' })
     } finally {
@@ -73,9 +87,9 @@ export default function CertificationsPage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [selectedCompanyId])
 
-  const canCertify = ['ADMIN', 'ADMIN_COMPANY', 'NOTARY'].includes(currentRole)
+  const canCertify = currentRole === 'NOTARY'
   const isNotary = currentRole === 'NOTARY'
 
   const handleVerify = async () => {
@@ -94,10 +108,12 @@ export default function CertificationsPage() {
     setSelectedDocument(null)
     setNotaryLicenseNumber('')
     setSignPassword('')
+    setObservations('')
     setLoadingPending(true)
 
     try {
-      const res = await fetch('/api/certifications?pending=true')
+      const url = selectedCompanyId ? `/api/certifications?pending=true&companyId=${selectedCompanyId}` : '/api/certifications?pending=true'
+      const res = await fetch(url)
       const json = await res.json()
       setPendingDocuments(json.data || [])
     } catch {
@@ -130,6 +146,7 @@ export default function CertificationsPage() {
           documentId: selectedDocument.id,
           notaryLicenseNumber: notaryLicenseNumber.trim() || undefined,
           signPassword: signPassword.trim() || undefined,
+          observations: observations.trim() || undefined,
         }),
       })
 
@@ -175,6 +192,22 @@ export default function CertificationsPage() {
           </Button>
         )}
       </div>
+
+      {isNotary && (
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          >
+            <option value="">Todas las empresas</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <span className="text-xs text-muted-foreground">Filtro global notarial</span>
+        </div>
+      )}
 
       <div className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card">
         <div className="flex items-center gap-2 mb-3 sm:mb-4">
@@ -265,9 +298,20 @@ export default function CertificationsPage() {
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">{cert.document.name}</p>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">{cert.document.company?.name || 'N/A'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(cert.createdAt).toLocaleDateString('es-CL')}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(cert.createdAt).toLocaleDateString('es-CL')}
+                    </p>
+                    <a
+                      href={`/verify/${cert.verificationCode}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80 transition-colors"
+                      title="Ver certificado público"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
                 </div>
                 <p className="text-xs font-mono text-muted-foreground truncate">{cert.sha256Hash}</p>
               </motion.div>
@@ -326,7 +370,7 @@ export default function CertificationsPage() {
                             <div className="min-w-0">
                               <p className="font-medium text-sm text-foreground truncate">{doc.originalName}</p>
                               <p className="text-xs text-muted-foreground">
-                                Subido por {doc.uploadedBy.name} · {new Date(doc.createdAt).toLocaleDateString('es-CL')}
+                                {doc.company?.name || 'Empresa'} · Subido por {doc.uploadedBy.name} · {new Date(doc.createdAt).toLocaleDateString('es-CL')}
                               </p>
                             </div>
                           </div>
@@ -337,9 +381,29 @@ export default function CertificationsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="p-3 rounded-lg border border-border bg-muted/30">
-                    <p className="text-xs text-muted-foreground">Documento seleccionado</p>
-                    <p className="text-sm font-semibold text-foreground">{selectedDocument.originalName}</p>
+                  <div className="p-3 rounded-lg border border-border bg-muted/30 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Documento seleccionado</p>
+                      <p className="text-sm font-semibold text-foreground">{selectedDocument.originalName}</p>
+                    </div>
+                    <a 
+                      href={`/api/documents/${selectedDocument.id}/download`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Ver documento
+                    </a>
+                  </div>
+
+                  <div>
+                    <label className="label">Observaciones legales (Opcional)</label>
+                    <textarea
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      placeholder="Ej: Certifico que he revisado el documento adjunto y valido su integridad..."
+                      className="w-full min-h-[80px] bg-background border border-input rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
                   </div>
 
                   <div>

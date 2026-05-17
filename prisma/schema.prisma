@@ -86,6 +86,19 @@ enum AuditAction {
   REVOKE_PERMISSION
 }
 
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
 // ============================================================
 // MODELOS
 // ============================================================
@@ -102,10 +115,11 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users      User[]
-  documents  Document[]
-  incidents  Incident[]
-  auditLogs  AuditLog[]
+  users         User[]
+  documents     Document[]
+  incidents     Incident[]
+  auditLogs     AuditLog[]
+  subscription  Subscription?
 }
 
 model User {
@@ -153,6 +167,7 @@ model Document {
   incidents      Incident[]
   certifications Certification[]
   auditLogs      AuditLog[]
+  chunks         DocumentChunk[]
 }
 
 model DocumentPermission {
@@ -244,3 +259,32 @@ model AuditLog {
   @@index([documentId])
   @@index([userId])
 }
+
+model Subscription {
+  id            String             @id @default(cuid())
+  companyId     String             @unique
+  company       Company            @relation(fields: [companyId], references: [id])
+  plan          SubscriptionPlan   @default(FREE)
+  status        SubscriptionStatus @default(ACTIVE)
+  maxUsers      Int                @default(5)
+  maxDocuments  Int                @default(100)
+  expiresAt     DateTime?
+  tbkToken      String?            // token Transbank del último pago exitoso
+  tbkOrderId    String?            // buyOrder del pago
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+// ── RAG: Chunks de documentos para búsqueda semántica ──────
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int      // orden del chunk dentro del documento
+  content    String   // texto plano del chunk
+  embedding  Json     // vector de embedding (array de floats)
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+}
+

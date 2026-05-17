@@ -9,6 +9,8 @@ import { ConfidentialityBadge } from '@/components/documents/ConfidentialityBadg
 import { RequestAccessButton } from '@/components/documents/RequestAccessButton'
 import { ReportIncidentButton } from '@/components/incidents/ReportIncidentButton'
 import { CertifyButton } from '@/components/documents/CertifyButton'
+import { DeleteDocumentButton } from '@/components/documents/DeleteDocumentButton'
+import { ChangeClassificationForm } from '@/components/documents/ChangeClassificationForm'
 import type { UserRole } from '@/types'
 
 export const metadata: Metadata = { title: 'Detalle del documento' }
@@ -147,6 +149,13 @@ export default async function DocumentDetailPage({
                 style={{ width: `${Math.min((document.classificationScore / 12) * 100, 100)}%` }}
               />
             </div>
+            
+            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+              <ChangeClassificationForm 
+                documentId={document.id} 
+                currentLevel={document.confidentialityLevel} 
+              />
+            )}
           </div>
 
           {/* Actions */}
@@ -163,9 +172,24 @@ export default async function DocumentDetailPage({
               <RequestAccessButton documentId={document.id} />
             )}
             
-            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+            {dbUser.role === 'NOTARY' && (
               <div className="pt-2">
                 <CertifyButton documentId={document.id} />
+              </div>
+            )}
+            
+            {document.certifications && document.certifications.length > 0 && (
+              <a href={`/api/documents/${document.id}/download-certified`} className="btn-secondary bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 border border-[#22c55e]/30 w-full text-sm justify-center flex items-center gap-2 mt-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Descargar Versión Certificada
+              </a>
+            )}
+
+            {['ADMIN', 'ADMIN_COMPANY'].includes(dbUser.role) && (
+              <div className="pt-2">
+                <DeleteDocumentButton documentId={document.id} />
               </div>
             )}
 

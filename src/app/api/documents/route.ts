@@ -19,8 +19,11 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') ?? '1', 10)
     const limit = parseInt(searchParams.get('limit') ?? '20', 10)
 
+    const targetCompanyId = searchParams.get('companyId')
+    const finalCompanyId = user.role === 'NOTARY' && targetCompanyId ? targetCompanyId : (user.role === 'NOTARY' ? undefined : user.companyId)
+
     const result = await getDocuments({
-      companyId: user.companyId,
+      companyId: finalCompanyId,
       ...(status && { status }),
       ...(confidentialityLevel && { confidentialityLevel }),
       page,

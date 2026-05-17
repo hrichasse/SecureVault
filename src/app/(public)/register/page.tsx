@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import { RegisterForm } from '@/components/auth/RegisterForm'
 import { Shield, Lock } from 'lucide-react'
 
@@ -15,7 +16,13 @@ export default async function RegisterPage() {
   } = await supabase.auth.getUser()
 
   if (user) {
-    redirect('/dashboard')
+    const dbUser = await prisma.user.findUnique({ where: { supabaseId: user.id } })
+    if (dbUser) {
+      redirect('/dashboard')
+    } else {
+      // Estado: usuario en Supabase pero sin perfil en BD (viene de OAuth nuevo)
+      redirect('/register/complete')
+    }
   }
 
   return (

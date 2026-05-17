@@ -38,6 +38,9 @@ export async function middleware(request: NextRequest) {
           )
         },
       },
+      cookieOptions: {
+        maxAge: 6 * 60 * 60, // 6 horas en segundos
+      },
     }
   )
 

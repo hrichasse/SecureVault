@@ -36,6 +36,9 @@ export async function createClient() {
           }
         },
       },
+      cookieOptions: {
+        maxAge: 6 * 60 * 60, // 6 horas en segundos
+      },
     }
   )
 }

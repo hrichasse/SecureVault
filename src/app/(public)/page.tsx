@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Shield, Sparkles, Lock, FileSearch } from 'lucide-react'
 
 export const metadata: Metadata = {
@@ -8,7 +9,21 @@ export const metadata: Metadata = {
     'Protege, clasifica y audita todos los documentos de tu organización con inteligencia artificial.',
 }
 
-export default function LandingPage() {
+export default function LandingPage({
+  searchParams,
+}: {
+  searchParams: { code?: string; error?: string }
+}) {
+  // Fallback defensivo: si el proveedor vuelve a Site URL con ?code=,
+  // reenviar al callback real para intercambiar sesión y continuar flujo.
+  if (searchParams.code) {
+    redirect(`/api/auth/callback?code=${encodeURIComponent(searchParams.code)}`)
+  }
+
+  if (searchParams.error) {
+    redirect(`/login?error=${encodeURIComponent(searchParams.error)}`)
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}

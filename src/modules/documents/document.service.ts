@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { prisma } from '@/lib/prisma'
 import { classifyDocument } from '@/modules/classification/classifier'
+import { indexDocument } from '@/lib/embeddings'
 import {
   createDocument,
   listDocuments,
@@ -125,6 +126,21 @@ export async function uploadDocument({
 
     return doc
   })
+
+  // 7. Indexar documento para RAG (fire-and-forget, no bloquea el upload)
+  try {
+    // @ts-ignore — pdf-parse v1 uses CommonJS default export
+    const pdfParse = (await import('pdf-parse')).default
+    const parsed = await pdfParse(buffer)
+    if (parsed.text && parsed.text.trim().length > 50) {
+      // Ejecutar en background — no esperamos a que termine
+      indexDocument(document.id, parsed.text).catch(err => {
+        console.error('[RAG] Error indexing document:', err)
+      })
+    }
+  } catch (ragError) {
+    console.warn('[RAG] Could not extract/index PDF text:', ragError)
+  }
 
   return {
     ...document,
