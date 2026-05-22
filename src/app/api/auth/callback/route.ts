@@ -98,9 +98,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const redirectUrl = existingUser
+  const next = searchParams.get('next')
+
+  let redirectUrl = existingUser
     ? `${origin}/dashboard`
     : `${origin}/register/complete`
+
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
+    redirectUrl = (existingUser || next === '/reset-password')
+      ? `${origin}${next}`
+      : `${origin}/register/complete`
+  }
 
   // Crear el redirect y aplicar las cookies de sesión sobre él
   const response = NextResponse.redirect(redirectUrl)

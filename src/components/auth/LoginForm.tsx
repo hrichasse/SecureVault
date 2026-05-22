@@ -113,9 +113,9 @@ export function LoginForm() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="login-password" className="text-sm font-medium text-foreground">Contraseña</Label>
-            <a href="#" className="text-xs text-primary hover:text-primary/80 transition-colors">
+            <Link href="/forgot-password" className="text-xs text-primary hover:text-primary/80 transition-colors">
               ¿Olvidaste tu contraseña?
-            </a>
+            </Link>
           </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
