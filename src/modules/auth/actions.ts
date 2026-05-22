@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { logEvent } from '@/modules/audit/audit.service'
 import { PLAN_CONFIG } from '@/modules/subscriptions/subscriptions.service'
+import { headers } from 'next/headers'
 
 // ── Schemas de validación ─────────────────────────────────────
 
@@ -370,4 +371,107 @@ export async function completeOAuthRegistrationAction(
   }
 
   redirect('/dashboard')
+}
+
+// ── requestPasswordResetAction ─────────────────────────────────
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Ingresa un email válido'),
+})
+
+export async function requestPasswordResetAction(
+  formData: FormData
+): Promise<{ error?: string; success?: boolean; message?: string } | void> {
+  const email = (formData.get('email') as string)?.trim().toLowerCase()
+
+  const parsed = forgotPasswordSchema.safeParse({ email })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Email inválido' }
+  }
+
+  try {
+    const supabase = await createClient()
+    
+    // Obtener origen dinámico para callback
+    const reqHeaders = await headers()
+    const host = reqHeaders.get('host') ?? 'localhost:3000'
+    const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
+    const origin = `${protocol}://${host}`
+
+    const redirectTo = `${origin}/api/auth/callback?next=/reset-password`
+
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      redirectTo,
+    })
+
+    if (error) {
+      console.error('[requestPasswordResetAction] Error Supabase:', error.message)
+      return { error: 'Error al enviar el correo de recuperación. Inténtalo de nuevo.' }
+    }
+
+    return {
+      success: true,
+      message: 'Te hemos enviado un enlace de recuperación. Por favor, revisa tu correo electrónico.',
+    }
+  } catch (err) {
+    console.error('[requestPasswordResetAction] Unexpected error:', err)
+    return { error: 'Ocurrió un error inesperado. Inténtalo más tarde.' }
+  }
+}
+
+// ── resetPasswordAction ────────────────────────────────────────
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+})
+
+export async function resetPasswordAction(
+  formData: FormData
+): Promise<{ error?: string; success?: boolean } | void> {
+  const password = formData.get('password') as string
+  const confirmPassword = formData.get('confirmPassword') as string
+
+  if (password !== confirmPassword) {
+    return { error: 'Las contraseñas no coinciden' }
+  }
+
+  const parsed = resetPasswordSchema.safeParse({ password })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Contraseña inválida' }
+  }
+
+  try {
+    const supabase = await createClient()
+
+    const { error } = await supabase.auth.updateUser({
+      password: parsed.data.password,
+    })
+
+    if (error) {
+      console.error('[resetPasswordAction] Error Supabase:', error.message)
+      return { error: 'No se pudo actualizar la contraseña. El enlace puede haber expirado.' }
+    }
+
+    // Registrar en auditoría
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const dbUser = await prisma.user.findUnique({
+        where: { supabaseId: user.id },
+        select: { id: true, companyId: true },
+      })
+      if (dbUser) {
+        await logEvent({
+          action: 'LOGIN',
+          userId: dbUser.id,
+          companyId: dbUser.companyId,
+          metadata: { email: user.email, method: 'password_reset' }
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[resetPasswordAction] Unexpected error:', err)
+    return { error: 'Ocurrió un error al actualizar la contraseña.' }
+  }
 }
