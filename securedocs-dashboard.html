@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureDocs — Panel de control</title>
+
+<!-- Tabler Icons (outline) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<!-- Chart.js 4.4.1 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+/* ══════════════════════════════════════════════════════════
+   TOKENS — paleta semántica centralizada
+   Azul   → documentos, acceso, autenticación
+   Teal   → certificados, verificados, éxito
+   Ámbar  → pendientes, advertencias
+   Rojo   → incidentes, errores, denegados
+   Gris   → elementos neutros, archivos
+══════════════════════════════════════════════════════════ */
+:root {
+  /* Fondos */
+  --bg:       #0b1120;
+  --surface:  #111827;
+  --surface2: #0a1020;
+  --border:   rgba(255,255,255,0.06);
+
+  /* Azul */
+  --blue:      #378ADD;
+  --blue-dk:   #0C447C;
+
+  /* Teal */
+  --teal:      #1D9E75;
+  --teal-dk:   #0F6E56;
+
+  /* Ámbar */
+  --amber:     #EF9F27;
+  --amber-dk:  #BA7517;
+
+  /* Rojo */
+  --red:       #E24B4A;
+  --red-dk:    #A32D2D;
+
+  /* Gris */
+  --gray:      #888780;
+  --gray-dk:   #5F5E5A;
+
+  /* Texto */
+  --tx-hi:   #e8edf8;
+  --tx-mid:  #94a3c0;
+  --tx-lo:   #4a5a78;
+  --tx-dim:  #344060;
+
+  /* Radios */
+  --r-card: 14px;
+  --r-pill:  8px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--tx-hi);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ══════════════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════════════ */
+.header {
+  background: #090e1c;
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.h-logo {
+  width: 38px;
+  height: 38px;
+  background: var(--blue-dk);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.h-logo i { font-size: 20px; color: #fff; }
+
+.h-info { flex: 1; }
+.h-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tx-hi);
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+.h-sub {
+  font-size: 11px;
+  color: var(--tx-lo);
+}
+
+/* Badge teal "Sistema operativo" */
+.h-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 13px;
+  border-radius: 20px;
+  background: rgba(15,110,86,0.16);
+  color: var(--teal);
+  border: 1px solid rgba(29,158,117,0.32);
+  flex-shrink: 0;
+}
+.h-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: blink 2.2s ease-in-out infinite;
+}
+@keyframes blink {
+  0%,100% { opacity:1; }
+  50%      { opacity:.3; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   LAYOUT PRINCIPAL
+══════════════════════════════════════════════════════════ */
+.main {
+  padding: 22px 28px;
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   KPI CARDS
+══════════════════════════════════════════════════════════ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Barra lateral de color semántico */
+.kpi::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0;
+  width: 3px;
+  height: 100%;
+  border-radius: 14px 0 0 14px;
+}
+.kpi.blue::before  { background: var(--blue); }
+.kpi.amber::before { background: var(--amber); }
+.kpi.red::before   { background: var(--red); }
+.kpi.teal::before  { background: var(--teal); }
+
+.kpi-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--tx-mid);
+  max-width: 100px;
+  line-height: 1.3;
+}
+
+.kpi-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.kpi.blue  .kpi-icon { background: rgba(55,138,221,.14); color: var(--blue); }
+.kpi.amber .kpi-icon { background: rgba(239,159,39,.14); color: var(--amber); }
+.kpi.red   .kpi-icon { background: rgba(226,75,74,.14);  color: var(--red); }
+.kpi.teal  .kpi-icon { background: rgba(29,158,117,.14); color: var(--teal); }
+
+.kpi-val {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -2.5px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.kpi.blue  .kpi-val { color: var(--blue); }
+.kpi.amber .kpi-val { color: var(--amber); }
+.kpi.red   .kpi-val { color: var(--red); }
+.kpi.teal  .kpi-val { color: var(--teal); }
+
+/* Tendencia con ícono inline */
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+.kpi-trend i { font-size: 12px; }
+.kpi.blue  .kpi-trend { color: rgba(55,138,221,.75); }
+.kpi.amber .kpi-trend { color: rgba(239,159,39,.75); }
+.kpi.red   .kpi-trend { color: rgba(226,75,74,.75); }
+.kpi.teal  .kpi-trend { color: rgba(29,158,117,.75); }
+
+/* ══════════════════════════════════════════════════════════
+   CARD GENÉRICA (gráficos y actividad)
+══════════════════════════════════════════════════════════ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.c-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.c-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tx-mid);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  flex: 1;
+}
+.c-range {
+  font-size: 10px;
+  color: var(--tx-dim);
+}
+.chart-wrap {
+  position: relative;
+  height: 170px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   GRÁFICOS ROW
+══════════════════════════════════════════════════════════ */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   FILA INFERIOR
+══════════════════════════════════════════════════════════ */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
+}
+
+/* ── Actividad reciente ── */
+.act-list { display: flex; flex-direction: column; }
+
+.act-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.act-item:last-child { border-bottom: none; }
+
+/* Pills con ícono + texto, color semántico */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 110px;
+  justify-content: center;
+}
+.pill i { font-size: 11px; }
+
+.p-blue  { background: rgba(12,68,124,.28);  color: #85B7EB; border: 1px solid rgba(55,138,221,.28); }
+.p-teal  { background: rgba(15,110,86,.24);  color: #5DCAA5; border: 1px solid rgba(29,158,117,.28); }
+.p-gray  { background: rgba(95,94,90,.2);    color: var(--gray); border: 1px solid rgba(136,135,128,.25); }
+.p-amber { background: rgba(186,117,23,.2);  color: var(--amber); border: 1px solid rgba(239,159,39,.28); }
+.p-red   { background: rgba(163,45,45,.22);  color: #F09595; border: 1px solid rgba(226,75,74,.28); }
+
+.act-desc {
+  flex: 1;
+  font-size: 12px;
+  color: var(--tx-mid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act-time {
+  font-size: 10px;
+  color: var(--tx-dim);
+  flex-shrink: 0;
+}
+
+/* ── Security Score ── */
+.score-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.score-sub {
+  font-size: 10px;
+  color: var(--tx-dim);
+  margin-top: 2px;
+  margin-bottom: 0;
+}
+.score-ring-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+/* Badge "Bueno" teal */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 13px;
+  border-radius: 20px;
+  background: rgba(15,110,86,.18);
+  color: var(--teal);
+  border: 1px solid rgba(29,158,117,.32);
+}
+.score-badge i { font-size: 12px; }
+
+/* Leyenda de segmentos */
+.legend { display: flex; flex-direction: column; gap: 8px; }
+
+.leg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--tx-lo);
+}
+.leg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.leg-pct {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tx-mid);
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .kpi-grid    { grid-template-columns: repeat(2,1fr); }
+  .bottom-row  { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .charts-row  { grid-template-columns: 1fr; }
+  .main        { padding: 16px 14px; }
+  .header      { padding: 0 14px; }
+}
+@media (max-width: 520px) {
+  .kpi-grid    { grid-template-columns: 1fr 1fr; }
+  .kpi-val     { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="h-logo">
+    <i class="ti ti-shield-check"></i>
+  </div>
+  <div class="h-info">
+    <div class="h-name">SecureDocs</div>
+    <div class="h-sub">Panel de control · Documentación &amp; Seguridad</div>
+  </div>
+  <div class="h-badge">
+    <span class="h-dot"></span>
+    Sistema operativo
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════
+     CONTENIDO PRINCIPAL
+══════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── KPI Cards ─────────────────────────────────── -->
+  <div class="kpi-grid">
+
+    <!-- Documentos totales → azul -->
+    <div class="kpi blue">
+      <div class="kpi-top">
+        <span class="kpi-label">Documentos totales</span>
+        <div class="kpi-icon"><i class="ti ti-file-text"></i></div>
+      </div>
+      <div class="kpi-val">284</div>
+      <div class="kpi-trend">
+        <i class="ti ti-trending-up"></i>+18 este mes
+      </div>
+    </div>
+
+    <!-- Solicitudes pendientes → ámbar -->
+    <div class="kpi amber">
+      <div class="kpi-top">
+        <span class="kpi-label">Solicitudes pendientes</span>
+        <div class="kpi-icon"><i class="ti ti-send"></i></div>
+      </div>
+      <div class="kpi-val">12</div>
+      <div class="kpi-trend">
+        <i class="ti ti-clock"></i>3 urgentes
+      </div>
+    </div>
+
+    <!-- Incidentes activos → rojo -->
+    <div class="kpi red">
+      <div class="kpi-top">
+        <span class="kpi-label">Incidentes activos</span>
+        <div class="kpi-icon"><i class="ti ti-alert-triangle"></i></div>
+      </div>
+      <div class="kpi-val">3</div>
+      <div class="kpi-trend">
+        <i class="ti ti-arrow-up"></i>Requiere atención
+      </div>
+    </div>
+
+    <!-- Certificaciones → teal -->
+    <div class="kpi teal">
+      <div class="kpi-top">
+        <span class="kpi-label">Certificaciones</span>
+        <div class="kpi-icon"><i class="ti ti-certificate"></i></div>
+      </div>
+      <div class="kpi-val">7</div>
+      <div class="kpi-trend">
+        <i class="ti ti-shield-check"></i>Todas vigentes
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Gráficos ───────────────────────────────────── -->
+  <div class="charts-row">
+
+    <!-- Barras: Documentos por mes (azul, intensidad progresiva) -->
+    <div class="card">
+      <div class="card-head">
+        <span class="c-dot" style="background:var(--blue);"></span>
+        <span class="c-title">Documentos por mes</span>
+        <span class="c-range">Ene → Jun</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="barChart"
+          aria-label="Barras: documentos por mes enero a junio (28,30,58,88,70,45)">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Línea: Solicitudes de acceso (teal, relleno translúcido) -->
+    <div class="card">
+      <div class="card-head">
+        <span class="c-dot" style="background:var(--teal);"></span>
+        <span class="c-title">Solicitudes de acceso</span>
+        <span class="c-range">Ene → Jun</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="lineChart"
+          aria-label="Línea: solicitudes de acceso enero a junio (24,9,29,30,18,2)">
+        </canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Fila inferior ─────────────────────────────── -->
+  <div class="bottom-row">
+
+    <!-- Actividad reciente (columna ancha) -->
+    <div class="card">
+      <div class="card-head">
+        <i class="ti ti-clock" style="font-size:15px;color:var(--blue);"></i>
+        <span class="c-title">Actividad reciente</span>
+      </div>
+      <div class="act-list">
+
+        <!-- Login → azul -->
+        <div class="act-item">
+          <span class="pill p-blue">
+            <i class="ti ti-login"></i>Inicio sesión
+          </span>
+          <span class="act-desc">xacao@pizzas.com inició sesión</span>
+          <span class="act-time">07:34 p.m.</span>
+        </div>
+
+        <!-- Registro → teal -->
+        <div class="act-item">
+          <span class="pill p-teal">
+            <i class="ti ti-user-plus"></i>Registro
+          </span>
+          <span class="act-desc">xacao@pizzas.com fue registrado</span>
+          <span class="act-time">07:43 p.m.</span>
+        </div>
+
+        <!-- Documento → gris -->
+        <div class="act-item">
+          <span class="pill p-gray">
+            <i class="ti ti-file-upload"></i>Documento
+          </span>
+          <span class="act-desc">contrato_2024.pdf subido</span>
+          <span class="act-time">08:35 p.m.</span>
+        </div>
+
+        <!-- Certificado → teal -->
+        <div class="act-item">
+          <span class="pill p-teal">
+            <i class="ti ti-certificate"></i>Certificado
+          </span>
+          <span class="act-desc">ISO-27001 validado y registrado</span>
+          <span class="act-time">08:51 p.m.</span>
+        </div>
+
+        <!-- Solicitud → ámbar -->
+        <div class="act-item">
+          <span class="pill p-amber">
+            <i class="ti ti-send"></i>Solicitud
+          </span>
+          <span class="act-desc">Acceso solicitado por mgomez</span>
+          <span class="act-time">09:02 p.m.</span>
+        </div>
+
+        <!-- Incidente → rojo -->
+        <div class="act-item">
+          <span class="pill p-red">
+            <i class="ti ti-alert-triangle"></i>Incidente
+          </span>
+          <span class="act-desc">Acceso denegado detectado</span>
+          <span class="act-time">09:14 p.m.</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Security Score (columna estrecha) -->
+    <div class="score-card">
+
+      <div class="card-head" style="margin-bottom:0;">
+        <i class="ti ti-shield-check" style="font-size:15px;color:var(--teal);"></i>
+        <span class="c-title">Security Score</span>
+      </div>
+      <div class="score-sub">Postura de seguridad global</div>
+
+      <!--
+        Anillo SVG — ViewBox 160×160, cx=cy=80, r=65
+        Circunferencia C = 2π × 65 ≈ 408.41
+
+        Segmentos (con transform rotate(-90 80 80) para iniciar en 12 h):
+          ① Fondo gris   (sin cubrir 15%) → círculo base completo
+          ② Azul translúcido (en revisión 10%) = 40.84 → dashoffset -306.31
+          ③ Teal (activo 75%) = 306.31 → dashoffset 0
+      -->
+      <div class="score-ring-area">
+        <svg viewBox="0 0 160 160" width="148" height="148"
+             aria-label="Puntuación de seguridad: 75 de 100">
+
+          <!-- ① Fondo: segmento sin cubrir (gris oscuro, 100% → 15% expuesto) -->
+          <circle cx="80" cy="80" r="65"
+            fill="none"
+            stroke="#182038"
+            stroke-width="17"/>
+
+          <!-- ② En revisión: azul translúcido (10%) -->
+          <circle cx="80" cy="80" r="65"
+            fill="none"
+            stroke="rgba(55,138,221,0.38)"
+            stroke-width="17"
+            stroke-dasharray="40.84 408.41"
+            stroke-dashoffset="-306.31"
+            stroke-linecap="round"
+            transform="rotate(-90 80 80)"/>
+
+          <!-- ③ Activo: teal (75%) -->
+          <circle cx="80" cy="80" r="65"
+            fill="none"
+            stroke="#1D9E75"
+            stroke-width="17"
+            stroke-dasharray="306.31 408.41"
+            stroke-linecap="round"
+            transform="rotate(-90 80 80)"/>
+
+          <!-- Número central -->
+          <text x="80" y="73"
+            text-anchor="middle"
+            fill="#e8edf8"
+            font-size="36"
+            font-weight="800"
+            font-family="system-ui,sans-serif">75</text>
+          <text x="80" y="93"
+            text-anchor="middle"
+            fill="#344060"
+            font-size="12"
+            font-family="system-ui,sans-serif">/100</text>
+        </svg>
+
+        <!-- Badge de estado -->
+        <div class="score-badge">
+          <i class="ti ti-badge-check"></i>Bueno
+        </div>
+      </div>
+
+      <!-- Leyenda de segmentos -->
+      <div class="legend">
+        <div class="leg-row">
+          <span class="leg-dot" style="background:#1D9E75;"></span>
+          Controles activos
+          <span class="leg-pct">75%</span>
+        </div>
+        <div class="leg-row">
+          <span class="leg-dot" style="background:rgba(55,138,221,0.5);"></span>
+          En revisión
+          <span class="leg-pct">10%</span>
+        </div>
+        <div class="leg-row">
+          <span class="leg-dot" style="background:#182038;border:1px solid #2a3a58;"></span>
+          Sin cubrir
+          <span class="leg-pct">15%</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════
+     CHART.JS — inicialización de gráficos
+══════════════════════════════════════════════════════ -->
+<script>
+  const MESES   = ['Ene','Feb','Mar','Abr','May','Jun'];
+  const GRID    = 'rgba(255,255,255,0.04)';
+  const TICKS   = '#344060';
+
+  /* Ejes compartidos: grilla sutil, ticks en --tx-dim, sin borde */
+  const axis = {
+    grid:   { color: GRID },
+    ticks:  { color: TICKS, font: { size: 11 } },
+    border: { display: false },
+  };
+
+  /* ── Gráfico de barras: Documentos por mes ──────────
+     Azul #378ADD con intensidad proporcional al valor.
+     borderRadius: 6 → esquinas redondeadas.
+     borderSkipped: false → radio en todos los bordes.
+  ────────────────────────────────────────────────── */
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: MESES,
+      datasets: [{
+        label: 'Documentos',
+        data:  [28, 30, 58, 88, 70, 45],
+        backgroundColor: [
+          'rgba(55,138,221,0.35)',  /* Ene – menor valor */
+          'rgba(55,138,221,0.42)',
+          'rgba(55,138,221,0.60)',
+          'rgba(55,138,221,0.92)',  /* Abr – mayor valor */
+          'rgba(55,138,221,0.74)',
+          'rgba(55,138,221,0.52)',
+        ],
+        borderColor:          '#378ADD',
+        borderWidth:          1,
+        borderRadius:         6,
+        borderSkipped:        false,
+        hoverBackgroundColor: 'rgba(55,138,221,0.96)',
+      }],
+    },
+    options: {
+      responsive:          true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: axis, y: axis },
+    },
+  });
+
+  /* ── Gráfico de línea: Solicitudes de acceso ────────
+     Teal #1D9E75, relleno translúcido degradado.
+     tension: 0.4 → curva suave.
+     Puntos con borde oscuro para destacar sobre el fondo.
+  ────────────────────────────────────────────────── */
+  const ctxL   = document.getElementById('lineChart').getContext('2d');
+  const lineFg = ctxL.createLinearGradient(0, 0, 0, 170);
+  lineFg.addColorStop(0,   'rgba(15,110,86,0.30)');
+  lineFg.addColorStop(0.7, 'rgba(15,110,86,0.06)');
+  lineFg.addColorStop(1,   'rgba(15,110,86,0.00)');
+
+  new Chart(ctxL, {
+    type: 'line',
+    data: {
+      labels: MESES,
+      datasets: [{
+        label: 'Solicitudes',
+        data:  [24, 9, 29, 30, 18, 2],
+        borderColor:          '#1D9E75',
+        borderWidth:          2.5,
+        backgroundColor:      lineFg,
+        fill:                 true,
+        tension:              0.4,
+        pointBackgroundColor: '#1D9E75',
+        pointBorderColor:     '#0b1120',  /* borde oscuro para destacar el punto */
+        pointBorderWidth:     2,
+        pointRadius:          5,
+        pointHoverRadius:     7,
+      }],
+    },
+    options: {
+      responsive:          true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: axis, y: axis },
+    },
+  });
+</script>
+</body>
+</html>
