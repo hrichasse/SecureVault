@@ -14,11 +14,32 @@ import { Label } from '@/components/ui/label'
  * Campos: nombre, nombre de empresa, email, password.
  * Llama al Server Action registerAction() directamente.
  */
+type PasswordStrength = { score: 0 | 1 | 2 | 3 | 4; label: string; color: string }
+
+function getPasswordStrength(password: string): PasswordStrength {
+  if (!password) return { score: 0, label: '', color: '' }
+  let score = 0
+  if (password.length >= 8)  score++
+  if (password.length >= 12) score++
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++
+  if (/[0-9]/.test(password)) score++
+  if (/[^A-Za-z0-9]/.test(password)) score++
+  const capped = Math.min(score, 4) as 0 | 1 | 2 | 3 | 4
+  const map: Record<1 | 2 | 3 | 4, { label: string; color: string }> = {
+    1: { label: 'Muy débil',  color: 'bg-red-500' },
+    2: { label: 'Débil',      color: 'bg-orange-400' },
+    3: { label: 'Aceptable',  color: 'bg-yellow-400' },
+    4: { label: 'Fuerte',     color: 'bg-green-500' },
+  }
+  return capped === 0 ? { score: 0, label: '', color: '' } : { score: capped, ...map[capped] }
+}
+
 export function RegisterForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [selectedRole, setSelectedRole] = useState<'ADMIN_COMPANY' | 'NOTARY'>('ADMIN_COMPANY')
+  const [passwordValue, setPasswordValue] = useState('')
 
   async function handleGoogleLogin() {
     setGoogleLoading(true)
@@ -172,9 +193,47 @@ export function RegisterForm() {
         <Label htmlFor="reg-password">Contraseña</Label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input id="reg-password" name="password" type="password" autoComplete="new-password" required minLength={8} placeholder="Mínimo 8 caracteres" className="pl-10" disabled={loading} />
+          <Input
+            id="reg-password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            placeholder="Mínimo 8 caracteres"
+            className="pl-10"
+            disabled={loading}
+            value={passwordValue}
+            onChange={(e) => setPasswordValue(e.target.value)}
+          />
         </div>
-        <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
+        {/* Indicador de fortaleza */}
+        {passwordValue.length > 0 && (() => {
+          const strength = getPasswordStrength(passwordValue)
+          return (
+            <div className="space-y-1.5">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((step) => (
+                  <div
+                    key={step}
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                      strength.score >= step ? strength.color : 'bg-muted'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className={`text-xs font-medium ${
+                strength.score <= 2 ? 'text-red-500' :
+                strength.score === 3 ? 'text-yellow-500' : 'text-green-500'
+              }`}>
+                {strength.label}
+              </p>
+            </div>
+          )
+        })()}
+        {passwordValue.length === 0 && (
+          <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
+        )}
       </div>
 
       <div className="flex items-start gap-2.5">
