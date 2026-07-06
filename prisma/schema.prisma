@@ -84,6 +84,7 @@ enum AuditAction {
   VERIFY_DOCUMENT
   GRANT_PERMISSION
   REVOKE_PERMISSION
+  CANCEL_SUBSCRIPTION
 }
 
 enum SubscriptionPlan {

@@ -142,6 +142,33 @@ export async function upgradeSubscription(
 }
 
 /**
+ * Cancela la suscripción de pago de una empresa haciendo un downgrade a FREE.
+ *
+ * No elimina la fila (se conserva para mantener el historial y las FKs):
+ * baja el plan a FREE, reajusta los límites, y limpia la fecha de vencimiento
+ * y los tokens de Transbank del pago anterior.
+ *
+ * Retorna null si la empresa no tenía suscripción o ya estaba en FREE.
+ */
+export async function cancelSubscription(companyId: string) {
+  const existing = await prisma.subscription.findUnique({ where: { companyId } })
+  if (!existing || existing.plan === 'FREE') return null
+
+  return prisma.subscription.update({
+    where: { companyId },
+    data: {
+      plan: 'FREE',
+      status: 'ACTIVE',
+      maxUsers: PLAN_CONFIG.FREE.maxUsers,
+      maxDocuments: PLAN_CONFIG.FREE.maxDocuments,
+      expiresAt: null,
+      tbkToken: null,
+      tbkOrderId: null,
+    },
+  })
+}
+
+/**
  * Retorna la configuración del plan actual de una empresa.
  * Si no tiene suscripción, retorna los límites FREE.
  */
