@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { PLAN_CONFIG, type PlanConfig } from '@/modules/subscriptions/subscriptions.service'
-import type { SubscriptionPlan, SubscriptionStatus } from '@prisma/client'
+import type { SubscriptionPlan, SubscriptionStatus, UserRole } from '@prisma/client'
 import {
   CheckCircle2, XCircle, AlertCircle, Crown, Zap, Building2,
-  Users, FileText, ShieldCheck, BarChart3, Headphones, ArrowRight, Loader2
+  Users, FileText, ShieldCheck, BarChart3, Headphones, ArrowRight, Loader2, Ban
 } from 'lucide-react'
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
   companyName?: string
   currentPlan: SubscriptionPlan
   planConfig: PlanConfig
+  userRole: UserRole
   subscription: {
     status: SubscriptionStatus
     expiresAt: string | null
@@ -21,7 +23,7 @@ interface Props {
   } | null
   usage: { users: number; documents: number }
   notification: {
-    type: 'success' | 'cancelled' | 'error'
+    type: 'success' | 'cancelled' | 'error' | 'downgraded'
     plan?: string
     amount?: string
     code?: string
@@ -86,11 +88,39 @@ export function SubscriptionClient({
   companyId,
   currentPlan,
   planConfig,
+  userRole,
   subscription,
   usage,
   notification,
 }: Props) {
+  const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
+
+  const canManageBilling = userRole === 'ADMIN_COMPANY' || userRole === 'ADMIN'
+  const showCancel = canManageBilling && currentPlan !== 'FREE'
+
+  async function handleCancel() {
+    setCancelling(true)
+    setCancelError(null)
+    try {
+      const res = await fetch('/api/subscriptions/cancel', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setCancelError(data.error || 'No se pudo cancelar la suscripción.')
+        setCancelling(false)
+        return
+      }
+      // Refrescar el server component para reflejar el nuevo plan FREE
+      router.replace('/settings/subscription?downgraded=true')
+      router.refresh()
+    } catch {
+      setCancelError('Error de conexión. Por favor intenta de nuevo.')
+      setCancelling(false)
+    }
+  }
 
   async function handleUpgrade(plan: SubscriptionPlan) {
     if (plan === 'ENTERPRISE') {
@@ -165,6 +195,17 @@ export function SubscriptionClient({
           <p className="text-sm font-medium">Pago cancelado. No se realizó ningún cargo.</p>
         </div>
       )}
+      {notification?.type === 'downgraded' && (
+        <div className="flex items-start gap-3 bg-muted/40 border border-border text-foreground rounded-xl p-4">
+          <Ban className="w-5 h-5 mt-0.5 flex-shrink-0 text-muted-foreground" />
+          <div>
+            <p className="font-semibold">Suscripción cancelada.</p>
+            <p className="text-sm mt-0.5 text-muted-foreground">
+              Tu organización volvió al plan <strong>Gratuito</strong>. Puedes volver a actualizar cuando quieras.
+            </p>
+          </div>
+        </div>
+      )}
       {notification?.type === 'error' && (
         <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4">
           <XCircle className="w-5 h-5 flex-shrink-0" />
@@ -215,6 +256,58 @@ export function SubscriptionClient({
             label="Documentos"
           />
         </div>
+
+        {/* Cancelar suscripción — solo admins y planes de pago */}
+        {showCancel && (
+          <div className="pt-4 border-t border-border/50">
+            {!confirmCancel ? (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Al cancelar, tu organización volverá al plan Gratuito y sus límites.
+                </p>
+                <button
+                  onClick={() => { setConfirmCancel(true); setCancelError(null) }}
+                  className="text-sm font-medium text-destructive hover:underline flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <Ban className="w-4 h-4" /> Cancelar suscripción
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <p className="text-sm font-medium text-foreground">
+                  ¿Seguro que quieres cancelar el plan {planConfig.label}?
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Tu organización pasará al plan Gratuito de inmediato (máx. {PLAN_CONFIG.FREE.maxUsers} usuarios
+                  y {PLAN_CONFIG.FREE.maxDocuments} documentos). Esta acción no genera reembolsos.
+                </p>
+                {cancelError && (
+                  <p className="text-sm text-destructive">{cancelError}</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCancel}
+                    disabled={cancelling}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-60 disabled:pointer-events-none flex items-center gap-2"
+                  >
+                    {cancelling ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Cancelando...</>
+                    ) : (
+                      <>Sí, cancelar</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setConfirmCancel(false)}
+                    disabled={cancelling}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted disabled:opacity-60 disabled:pointer-events-none"
+                  >
+                    Mantener plan
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabla comparativa de planes */}
