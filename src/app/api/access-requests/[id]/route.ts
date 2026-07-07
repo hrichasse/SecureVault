@@ -26,7 +26,7 @@ export async function PATCH(
     const user = await getAuthUser()
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    if (user.role === 'USER') {
+    if (user.role !== 'ADMIN' && user.role !== 'ADMIN_COMPANY') {
       return NextResponse.json(
         { error: 'Solo ADMIN o ADMIN_COMPANY pueden revisar solicitudes' },
         { status: 403 }
