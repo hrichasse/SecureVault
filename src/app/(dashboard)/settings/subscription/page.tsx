@@ -36,12 +36,15 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
   // Extraer parámetros de búsqueda (string simple)
   const success = typeof searchParams.success === 'string' ? searchParams.success : undefined
   const cancelled = typeof searchParams.cancelled === 'string' ? searchParams.cancelled : undefined
+  const downgraded = typeof searchParams.downgraded === 'string' ? searchParams.downgraded : undefined
   const error = typeof searchParams.error === 'string' ? searchParams.error : undefined
   const planParam = typeof searchParams.plan === 'string' ? searchParams.plan : undefined
   const amount = typeof searchParams.amount === 'string' ? searchParams.amount : undefined
 
   const notification = success === 'true'
     ? { type: 'success' as const, plan: planParam, amount }
+    : downgraded === 'true'
+    ? { type: 'downgraded' as const }
     : cancelled === 'true'
     ? { type: 'cancelled' as const }
     : error
@@ -54,6 +57,7 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
       companyName={dbUser.company.name}
       currentPlan={currentPlan}
       planConfig={planConfig}
+      userRole={dbUser.role}
       subscription={subscription ? {
         status: subscription.status,
         expiresAt: subscription.expiresAt?.toISOString() ?? null,

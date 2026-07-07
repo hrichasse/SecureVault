@@ -41,6 +41,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   VERIFY_DOCUMENT:  'Verif. documento',
   GRANT_PERMISSION: 'Permiso otorgado',
   REVOKE_PERMISSION:'Permiso revocado',
+  CANCEL_SUBSCRIPTION: 'Suscripción cancelada',
 }
 
 const ACTION_COLORS: Partial<Record<AuditAction, string>> = {
