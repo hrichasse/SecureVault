@@ -59,7 +59,7 @@ export function getRoleShortLabel(role: AppRole): string {
  *
  * admin   → todo (+ panel admin → gestión de todos los usuarios del sistema)
  * admin_empresa → dashboard, docs, solicitudes, incidentes, certificaciones, equipo
- * cliente → dashboard, docs, solicitudes
+ * cliente → dashboard, docs
  * notario → dashboard, docs, certificaciones
  */
 export interface NavItem {
@@ -72,7 +72,7 @@ export interface NavItem {
 export const mainNavItems: NavItem[] = [
   { title: 'Dashboard',       url: '/dashboard',      icon: 'LayoutDashboard', roles: ['admin', 'admin_empresa', 'cliente', 'notario'] },
   { title: 'Documentos',      url: '/documents',      icon: 'FileText',        roles: ['admin', 'admin_empresa', 'cliente', 'notario'] },
-  { title: 'Solicitudes',     url: '/requests',       icon: 'Send',            roles: ['admin', 'admin_empresa', 'cliente'] },
+  { title: 'Solicitudes',     url: '/requests',       icon: 'Send',            roles: ['admin', 'admin_empresa'] },
   { title: 'Incidentes',      url: '/incidents',      icon: 'AlertTriangle',   roles: ['admin', 'admin_empresa'] },
   { title: 'Certificaciones', url: '/certifications', icon: 'ShieldCheck',     roles: ['admin', 'admin_empresa', 'notario'] },
   { title: 'Auditoría',       url: '/audit',          icon: 'ClipboardList',   roles: ['admin', 'admin_empresa'] },

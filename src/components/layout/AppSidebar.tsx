@@ -46,7 +46,7 @@ const iconMap = {
 const allItems = [
   { title: 'Dashboard', url: '/dashboard', icon: 'LayoutDashboard' as const, roles: ['admin', 'admin_empresa', 'cliente', 'notario'] as AppRole[] },
   { title: 'Documentos', url: '/documents', icon: 'FileText' as const, roles: ['admin', 'admin_empresa', 'cliente', 'notario'] as AppRole[] },
-  { title: 'Solicitudes', url: '/requests', icon: 'Send' as const, roles: ['admin', 'admin_empresa', 'cliente'] as AppRole[] },
+  { title: 'Solicitudes', url: '/requests', icon: 'Send' as const, roles: ['admin', 'admin_empresa'] as AppRole[] },
   { title: 'Incidentes', url: '/incidents', icon: 'AlertTriangle' as const, roles: ['admin', 'admin_empresa'] as AppRole[] },
   { title: 'Certificaciones', url: '/certifications', icon: 'ShieldCheck' as const, roles: ['admin', 'admin_empresa', 'notario'] as AppRole[] },
   { title: 'Auditoría', url: '/audit', icon: 'ClipboardList' as const, roles: ['admin', 'admin_empresa'] as AppRole[] },
