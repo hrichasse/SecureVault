@@ -100,6 +100,15 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+// Etapa de la empresa en el pipeline del CRM
+enum CompanyStage {
+  LEAD
+  ONBOARDING
+  ACTIVE
+  AT_RISK
+  CHURNED
+}
+
 // ============================================================
 // MODELOS
 // ============================================================
@@ -112,7 +121,9 @@ model Company {
   address     String?
   businessLine String?
   adminName   String?
+  phone       String?       // teléfono de contacto (formato E.164 para WhatsApp, ej: +56912345678)
   description String?
+  stage       CompanyStage @default(ACTIVE) // etapa en el pipeline del CRM
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -121,6 +132,21 @@ model Company {
   incidents     Incident[]
   auditLogs     AuditLog[]
   subscription  Subscription?
+  notes         CompanyNote[]
+}
+
+// Nota / interacción del CRM sobre una empresa (timeline de actividad)
+model CompanyNote {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String   // nombre denormalizado del autor (sobrevive si se borra el usuario)
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([companyId])
 }
 
 model User {
@@ -142,6 +168,7 @@ model User {
   incidentsAssigned Incident[]           @relation("AssignedTo")
   certifications    Certification[]
   auditLogs         AuditLog[]
+  companyNotes      CompanyNote[]
 }
 
 model Document {

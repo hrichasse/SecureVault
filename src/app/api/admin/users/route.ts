@@ -267,7 +267,19 @@ export async function DELETE(request: Request) {
 
     const target = await prisma.user.findFirst({
       where: targetWhere,
-      select: { id: true, role: true, supabaseId: true },
+      select: {
+        id: true,
+        role: true,
+        supabaseId: true,
+        _count: {
+          select: {
+            documents: true,
+            certifications: true,
+            incidentsCreated: true,
+            requestsMade: true,
+          },
+        },
+      },
     })
     if (!target) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
@@ -275,8 +287,39 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'No tienes permisos para eliminar ese usuario' }, { status: 403 })
     }
 
-    await supabaseAdmin.auth.admin.deleteUser(target.supabaseId)
-    await prisma.user.delete({ where: { id: userId } })
+    // Bloquear si el usuario tiene contenido propio (activos de empresa / registros
+    // legales que no deben desaparecer al borrar la persona).
+    const owned = target._count
+    if (owned.documents > 0 || owned.certifications > 0 || owned.incidentsCreated > 0 || owned.requestsMade > 0) {
+      const partes: string[] = []
+      if (owned.documents > 0) partes.push(`${owned.documents} documento(s)`)
+      if (owned.certifications > 0) partes.push(`${owned.certifications} certificación(es)`)
+      if (owned.incidentsCreated > 0) partes.push(`${owned.incidentsCreated} incidente(s) creado(s)`)
+      if (owned.requestsMade > 0) partes.push(`${owned.requestsMade} solicitud(es)`)
+      return NextResponse.json(
+        {
+          error: `No se puede eliminar: el usuario tiene ${partes.join(', ')}. Reasigna o elimina ese contenido antes de borrarlo.`,
+        },
+        { status: 409 }
+      )
+    }
+
+    // Limpieza de referencias "blandas" + borrado, en una transacción. Se hace en la
+    // BD primero para no dejar un usuario huérfano en Auth si algo falla.
+    await prisma.$transaction([
+      prisma.documentPermission.deleteMany({ where: { userId } }),
+      prisma.auditLog.updateMany({ where: { userId }, data: { userId: null } }),
+      prisma.accessRequest.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } }),
+      prisma.incident.updateMany({ where: { assignedToId: userId }, data: { assignedToId: null } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ])
+
+    // Auth al final: si falla, la BD ya quedó consistente; se registra el huérfano.
+    try {
+      await supabaseAdmin.auth.admin.deleteUser(target.supabaseId)
+    } catch (authErr) {
+      console.error('[DELETE /api/admin/users] Usuario eliminado de la BD pero falló en Auth:', target.supabaseId, authErr)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
