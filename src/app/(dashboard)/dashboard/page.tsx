@@ -71,41 +71,34 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch metrics
-        const [docsRes, reqRes, incRes, certRes, auditRes] = await Promise.all([
-          fetch('/api/documents?limit=1'),
-          fetch('/api/access-requests?status=PENDING&limit=1'),
-          fetch('/api/incidents?status=OPEN&limit=1'),
-          fetch('/api/certifications?limit=1'),
-          fetch('/api/audit?limit=5'),
-        ])
+        // Una sola llamada consolidada (antes eran 5 endpoints separados,
+        // cada uno revalidando la sesión → mucho más lento).
+        const res = await fetch('/api/dashboard/summary')
+        const json = await res.json()
+        const m = json.data?.metrics
+        const activityLogs: Array<Record<string, unknown>> = json.data?.activity ?? []
 
-        const docsData = await docsRes.json()
-        const reqData = await reqRes.json()
-        const incData = await incRes.json()
-        const certData = await certRes.json()
-        const auditData = await auditRes.json()
+        const totalDocuments = m?.totalDocuments ?? 0
+        const pendingRequests = m?.pendingRequests ?? 0
 
         setMetrics({
-          totalDocuments: docsData.pagination?.total ?? docsData.data?.length ?? 0,
-          pendingRequests: reqData.pagination?.total ?? reqData.data?.length ?? 0,
-          activeIncidents: incData.pagination?.total ?? incData.data?.length ?? 0,
-          totalCertifications: certData.pagination?.total ?? certData.data?.length ?? 0,
+          totalDocuments,
+          pendingRequests,
+          activeIncidents: m?.openIncidents ?? 0,
+          totalCertifications: m?.issuedCertifications ?? 0,
         })
 
         // Parse audit logs as recent activity
-        if (auditData.data) {
-          const mapped: ActivityItem[] = auditData.data.map((log: Record<string, unknown>) => {
-            const action = log.action as string
-            return {
-              action: actionLabelMap[action] || action,
-              detail: (log.metadata as Record<string, string>)?.documentName || (log.user as Record<string, string>)?.email || '',
-              time: new Date(log.createdAt as string).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-              type: actionTypeMap[action] || 'info',
-            }
-          })
-          setActivity(mapped)
-        }
+        const mapped: ActivityItem[] = activityLogs.map((log) => {
+          const action = log.action as string
+          return {
+            action: actionLabelMap[action] || action,
+            detail: (log.document as Record<string, string>)?.name || (log.user as Record<string, string>)?.name || '',
+            time: new Date(log.createdAt as string).toLocaleString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+            type: actionTypeMap[action] || 'info',
+          }
+        })
+        setActivity(mapped)
 
         // Generate chart data (mock monthly — real would need an aggregation endpoint)
         setChartData([
@@ -114,7 +107,7 @@ export default function DashboardPage() {
           { mes: 'Mar', documentos: Math.floor(Math.random() * 50) + 40, solicitudes: Math.floor(Math.random() * 20) + 10 },
           { mes: 'Abr', documentos: Math.floor(Math.random() * 50) + 50, solicitudes: Math.floor(Math.random() * 20) + 12 },
           { mes: 'May', documentos: Math.floor(Math.random() * 50) + 60, solicitudes: Math.floor(Math.random() * 20) + 15 },
-          { mes: 'Jun', documentos: docsData.pagination?.total ?? 0, solicitudes: reqData.pagination?.total ?? 0 },
+          { mes: 'Jun', documentos: totalDocuments, solicitudes: pendingRequests },
         ])
       } catch (err) {
         console.error('Error loading dashboard:', err)

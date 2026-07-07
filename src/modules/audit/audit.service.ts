@@ -95,9 +95,6 @@ export async function getAuditLogs({
 // ── Dashboard Metrics ──
 
 export async function getDashboardMetrics(companyId: string) {
-  const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
   const [totalDocuments, pendingRequests, openIncidents, issuedCertifications] = await Promise.all([
     prisma.document.count({
       where: { companyId, status: { not: 'DELETED' } },
@@ -109,11 +106,7 @@ export async function getDashboardMetrics(companyId: string) {
       where: { companyId, status: { in: ['OPEN', 'IN_PROGRESS'] } },
     }),
     prisma.certification.count({
-      where: { 
-        document: { companyId }, 
-        isValid: true,
-        createdAt: { gte: firstDayOfMonth }
-      },
+      where: { document: { companyId } },
     }),
   ])
 
