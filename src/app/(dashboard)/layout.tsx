@@ -2,6 +2,7 @@ import { getAuthUser } from '@/modules/auth/auth.service'
 import { redirect } from 'next/navigation'
 import { mapDbRoleToAppRole, getRoleLabel } from '@/lib/role-access'
 import { DashboardShell } from '@/components/layout/DashboardShell'
+import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({
   children,
@@ -10,6 +11,17 @@ export default async function DashboardLayout({
 }) {
   const authUser = await getAuthUser()
   if (!authUser) redirect('/login')
+
+  // Enforcement de 2FA: si el usuario tiene un segundo factor verificado pero la
+  // sesión sigue en AAL1 (solo password), exigir el reto antes de entrar al panel.
+  // El layout envuelve todas las rutas del dashboard, así que cubre todo el panel.
+  const supabase = await createClient()
+  const { data: { user: sbUser } } = await supabase.auth.getUser()
+  const hasVerifiedFactor = (sbUser?.factors ?? []).some((f) => f.status === 'verified')
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal?.currentLevel === 'aal1' && (aal?.nextLevel === 'aal2' || hasVerifiedFactor)) {
+    redirect('/verify-2fa')
+  }
 
   const appRole = mapDbRoleToAppRole(authUser.role)
   const initials = authUser.name
