@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { updateUserNameAction } from './actions'
 import { User, Building2, Info } from 'lucide-react'
+import { TwoFactorSection } from '@/components/settings/TwoFactorSection'
 
 export const metadata: Metadata = { title: 'Configuración | SecureVault AI' }
 
@@ -121,6 +122,9 @@ export default async function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Seguridad — Verificación en dos pasos */}
+      <TwoFactorSection />
     </div>
   )
 }

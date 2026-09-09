@@ -58,6 +58,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // (El enforcement de 2FA vive en el layout del dashboard, que corre en todas
+  //  las rutas protegidas y en el contexto server donde el AAL es confiable.)
+
   // Importante: devolver supabaseResponse (no NextResponse.next())
   // para que las cookies de sesión actualizadas se propaguen
   return supabaseResponse
