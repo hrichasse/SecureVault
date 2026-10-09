@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { publishEvent } from '@/lib/messaging/publisher'
 import type { UserRole } from '@/types'
 
 // ── Utilidades ────────────────────────────────────────────
@@ -44,7 +45,7 @@ export async function createRequest({
   })
   if (existing) throw new Error('Ya tienes una solicitud pendiente para este documento')
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const request = await tx.accessRequest.create({
       data: {
         documentId,
@@ -73,6 +74,16 @@ export async function createRequest({
 
     return request
   })
+
+  await publishEvent('access-request.created', {
+    requestId: created.id,
+    companyId,
+    documentName: created.document.name,
+    requestedById: userId,
+    requesterName: created.requestedBy.name,
+  })
+
+  return created
 }
 
 // ── approveRequest ────────────────────────────────────────
@@ -103,7 +114,7 @@ export async function approveRequest({
 
   const expiresAt = grantDurationDays ? addDays(grantDurationDays) : null
 
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     // Actualizar solicitud
     const updated = await tx.accessRequest.update({
       where: { id: requestId },
@@ -153,6 +164,17 @@ export async function approveRequest({
 
     return updated
   })
+
+  await publishEvent('access-request.reviewed', {
+    requestId,
+    companyId,
+    documentId: request.documentId,
+    documentName: request.document.name,
+    requestedById: request.requestedById,
+    status: 'APPROVED',
+  })
+
+  return approved
 }
 
 // ── rejectRequest ─────────────────────────────────────────
@@ -170,14 +192,14 @@ export async function rejectRequest({
 }) {
   const request = await prisma.accessRequest.findFirst({
     where: { id: requestId, status: 'PENDING' },
-    include: { document: { select: { companyId: true } } },
+    include: { document: { select: { companyId: true, name: true } } },
   })
 
   if (!request) throw new Error('Solicitud no encontrada o ya procesada')
   if (request.document.companyId !== companyId)
     throw new Error('Sin permisos sobre esta solicitud')
 
-  return prisma.$transaction(async (tx) => {
+  const rejected = await prisma.$transaction(async (tx) => {
     const updated = await tx.accessRequest.update({
       where: { id: requestId },
       data: {
@@ -200,6 +222,17 @@ export async function rejectRequest({
 
     return updated
   })
+
+  await publishEvent('access-request.reviewed', {
+    requestId,
+    companyId,
+    documentId: request.documentId,
+    documentName: request.document.name,
+    requestedById: request.requestedById,
+    status: 'REJECTED',
+  })
+
+  return rejected
 }
 
 // ── getRequests ───────────────────────────────────────────

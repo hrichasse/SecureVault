@@ -52,3 +52,7 @@ coverage/
 # ==================== Misc ====================
 *.tsbuildinfo
 next-env.d.ts
+
+# ==================== Mensajería (emulador de Service Bus) ====================
+# Se genera desde src/lib/messaging/topology.ts con `npm run mq:config`
+infra/servicebus/Config.json

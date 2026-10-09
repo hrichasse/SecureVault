@@ -169,6 +169,7 @@ model User {
   certifications    Certification[]
   auditLogs         AuditLog[]
   companyNotes      CompanyNote[]
+  notifications     Notification[]
 }
 
 model Document {
@@ -316,3 +317,22 @@ model DocumentChunk {
   @@index([documentId])
 }
 
+
+// ── Notificaciones in-app (las crea el suscriptor "notifier" del bus de mensajes) ──
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String    // tipo del evento de origen (p. ej. incident.created)
+  title     String
+  body      String
+  href      String?   // a dónde lleva el aviso al hacer clic
+  eventId   String    // id del evento de origen
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // La entrega es at-least-once: el mismo evento puede llegar dos veces y no
+  // debe duplicar el aviso.
+  @@unique([userId, eventId])
+  @@index([userId, createdAt])
+}

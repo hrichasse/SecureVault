@@ -12,6 +12,7 @@
 | Base de datos | Supabase PostgreSQL |
 | Autenticación | Supabase Auth |
 | Almacenamiento | Supabase Storage |
+| Mensajería (opcional) | Azure Service Bus |
 | Deploy | Azure App Service |
 
 ## Requisitos Previos
@@ -62,6 +63,19 @@ curl http://localhost:3000/api/health
 # → {"status":"ok","timestamp":"...","version":"1.0.0"}
 ```
 
+### 6. Mensajería (opcional)
+
+La indexación de documentos y los avisos in-app se procesan en segundo plano con
+Azure Service Bus. Sin `SERVICEBUS_CONNECTION_STRING` la app funciona igual, pero
+en línea y sin reintentos. Para usar el emulador local (requiere Docker):
+
+```bash
+cp infra/servicebus/.env.example infra/servicebus/.env
+npm run mq:up
+```
+
+Arquitectura, pruebas y puesta en producción: [docs/mensajeria.md](docs/mensajeria.md).
+
 ## Estructura del Proyecto
 
 ```
@@ -83,6 +97,7 @@ src/
 ├── hooks/                # Custom React hooks
 ├── services/             # Servicios externos (Supabase, etc.)
 ├── lib/                  # Utilidades y clientes singleton
+│   └── messaging/        # Bus de mensajes (Azure Service Bus)
 └── types/                # Tipos TypeScript globales
 ```
 
@@ -99,6 +114,10 @@ src/
 | `npm run db:push` | Push schema sin migraciones |
 | `npm run db:seed` | Ejecutar seed de datos |
 | `npm run db:studio` | Abrir Prisma Studio |
+| `npm test` | Tests unitarios |
+| `npm run mq:up` / `mq:down` | Levantar / detener el emulador de Service Bus |
+| `npm run test:mq` | Tests de integración de la mensajería (requiere el emulador) |
+| `npm run mq:provision` | Crear las entidades de mensajería en Azure |
 
 ## Módulos Principales
 
@@ -110,6 +129,7 @@ src/
 - **Incidents**: Registro y gestión de incidentes de seguridad
 - **Certifications**: Generación de certificados de autenticidad verificables
 - **Audit**: Trazabilidad completa de todas las acciones del sistema
+- **Notifications**: Avisos in-app generados a partir de eventos del bus de mensajes
 
 ## Licencia
 

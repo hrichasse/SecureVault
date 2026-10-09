@@ -35,17 +35,20 @@ if (typeof global.fetch === 'undefined') {
 }
 
 // Mock de matchMedia (no implementado en jsdom de forma nativa)
-// Esto evita advertencias y errores en componentes de Radix UI o Tailwind CSS
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // obsoleto
-    removeListener: jest.fn(), // obsoleto
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-})
+// Esto evita advertencias y errores en componentes de Radix UI o Tailwind CSS.
+// Los tests de servidor corren con `@jest-environment node`, donde no hay window.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(), // obsoleto
+      removeListener: jest.fn(), // obsoleto
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  })
+}
