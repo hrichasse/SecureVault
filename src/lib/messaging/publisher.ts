@@ -20,7 +20,16 @@ import { SUBSCRIPTION_CONSUMERS } from './subscriptions'
 
 const PUBLISH_TIMEOUT_MS = 3_000
 
-export async function publishEvent<T extends EventType>(type: T, data: EventPayloads[T]): Promise<void> {
+export interface PublishOptions {
+  /** Vida del mensaje en el broker; si nadie lo consume antes, vence. Por defecto, la de la suscripción. */
+  timeToLive?: number
+}
+
+export async function publishEvent<T extends EventType>(
+  type: T,
+  data: EventPayloads[T],
+  options: PublishOptions = {}
+): Promise<void> {
   const envelope = createEnvelope(type, data) as unknown as AnyEventEnvelope
 
   if (isMessagingEnabled()) {
@@ -32,6 +41,7 @@ export async function publishEvent<T extends EventType>(type: T, data: EventPayl
           // Los filtros de las suscripciones enrutan por subject.
           subject: type,
           contentType: 'application/json',
+          ...(options.timeToLive && { timeToLive: options.timeToLive }),
         },
         // Tope duro: quien publica es una operación de usuario (subir un documento,
         // crear un incidente) y no puede quedar esperando a un broker que no responde.
@@ -52,7 +62,7 @@ function dispatchInline(envelope: AnyEventEnvelope): void {
     if (!subscription.subjects.includes(envelope.type)) continue
     const consumer = SUBSCRIPTION_CONSUMERS[subscription.name]
     if (!consumer) continue
-    consumer.handler(envelope).catch((error) => {
+    consumer.handler(envelope, { deliveryCount: 0 }).catch((error) => {
       console.error(`[Messaging] ${subscription.name}: fallo al procesar ${envelope.type} en línea.`, error)
     })
   }

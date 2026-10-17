@@ -25,9 +25,9 @@ jest.mock('@/lib/messaging/subscriptions', () => ({
 
 import { getBusClient, getEventsSender } from '@/lib/messaging/bus'
 import { publishEvent } from '@/lib/messaging/publisher'
-import { getWorkerInfo, startConsumers } from '@/lib/messaging/consumers'
+import { getWorkerInfo, pauseConsumers, resumeConsumers, startConsumers } from '@/lib/messaging/consumers'
 import { requestReply, RpcTimeoutError } from '@/lib/messaging/rpc'
-import { getSubscriptionsStatus, listDeadLetters, settleDeadLetter } from '@/lib/messaging/dead-letter'
+import { alertBrokerDeadLetters, getSubscriptionsStatus, listDeadLetters, settleDeadLetter } from '@/lib/messaging/dead-letter'
 import { PermanentError } from '@/lib/messaging/settlement'
 import { QUEUE_RPC_REQUESTS, TOPIC_EVENTS } from '@/lib/messaging/topology'
 
@@ -122,22 +122,33 @@ describeWithBroker('Mensajería sobre Azure Service Bus (emulador)', () => {
       expect(await receiverFor('rpc', true).receiveMessages(5, { maxWaitTimeInMs: 1_500 })).toHaveLength(0)
     })
 
-    it('retención: un evento que expira sin consumirse termina en la DLQ con TTLExpiredException', async () => {
+    it('retención + alerta: un evento que expira sin consumirse termina en la DLQ con TTLExpiredException y avisa', async () => {
+      // Un incidente: lo recibe solo la suscripción "notifier", así que hay una única copia.
       await getEventsSender().sendMessages({
-        body: { id: 'evt-ttl', type: 'document.uploaded', occurredAt: new Date().toISOString(), data: documentUploaded('doc-ttl') },
+        body: {
+          id: 'evt-ttl', type: 'incident.created', occurredAt: new Date().toISOString(),
+          data: { incidentId: 'inc-ttl', companyId: 'company-1', title: 'Vence sin consumirse', priority: 'LOW', createdById: 'user-1' },
+        },
         messageId: 'evt-ttl',
-        subject: 'document.uploaded',
+        subject: 'incident.created',
         timeToLive: 2_000,
       })
       await sleep(4_000)
 
-      expect(await receiverFor('indexer').receiveMessages(5, { maxWaitTimeInMs: 1_500 })).toHaveLength(0)
+      // Vencido, ya no se entrega (y al intentarlo, el broker lo pasa a la DLQ).
+      expect(await receiverFor('notifier').receiveMessages(5, { maxWaitTimeInMs: 1_500 })).toHaveLength(0)
 
-      await waitFor(async () => (await listDeadLetters()).some((d) => d.messageId === 'evt-ttl'), 'evento expirado en la DLQ')
-      const expired = (await listDeadLetters()).filter((d) => d.messageId === 'evt-ttl')
-      expect(expired.map((d) => d.reason)).toEqual(expect.arrayContaining(['TTLExpiredException']))
-      // Nadie llegó a procesarlo.
-      expect(expired.map((d) => d.attempts)).toEqual(expired.map(() => 0))
+      await waitFor(async () => (await listDeadLetters()).some((d) => d.messageId === 'evt-ttl'), 'evento vencido en la DLQ')
+      const [expired] = (await listDeadLetters()).filter((d) => d.messageId === 'evt-ttl')
+      // Nadie llegó a procesarlo: lo movió el propio broker.
+      expect(expired).toMatchObject({ subscription: 'notifier', reason: 'TTLExpiredException', attempts: 0, deadLetteredBy: 'broker' })
+
+      // Alerta: como ningún consumidor intervino, la genera la revisión de la DLQ, una sola vez.
+      expect(await alertBrokerDeadLetters()).toBe(1)
+      expect(notifierHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'messaging.dead-lettered', data: expect.objectContaining({ subscription: 'notifier', reason: 'TTLExpiredException' }) })
+      )
+      expect(await alertBrokerDeadLetters()).toBe(0)
       await purge()
     })
 
@@ -183,6 +194,23 @@ describeWithBroker('Mensajería sobre Azure Service Bus (emulador)', () => {
       expect(indexerHandler).not.toHaveBeenCalled()
     })
 
+    it('durabilidad con pausa: lo publicado mientras los consumidores están en pausa espera en el broker', async () => {
+      expect(await pauseConsumers()).toBe(true)
+      expect(getWorkerInfo()!.pausedUntil).not.toBeNull()
+
+      await publishEvent('incident.created', {
+        incidentId: 'inc-pausa', companyId: 'company-1', title: 'Publicado en pausa', priority: 'LOW', createdById: 'user-1',
+      })
+      await waitFor(async () => (await statusOf('notifier')).active === 1, 'el evento espera en la suscripción')
+      await sleep(1_500)
+      expect(notifierHandler).not.toHaveBeenCalled()
+
+      expect(resumeConsumers()).toBe(true)
+      await waitFor(() => notifierHandler.mock.calls.length === 1, 'se procesa al reanudar')
+      await waitFor(async () => (await statusOf('notifier')).active === 0, 'cola vacía tras el ack')
+      expect(getWorkerInfo()!.pausedUntil).toBeNull()
+    })
+
     it('ack con reintento: un fallo transitorio se reintenta con backoff hasta que el handler confirma', async () => {
       indexerHandler
         .mockRejectedValueOnce(new Error('Gemini 429'))
@@ -212,6 +240,7 @@ describeWithBroker('Mensajería sobre Azure Service Bus (emulador)', () => {
       const [dead] = (await listDeadLetters()).filter((d) => d.subscription === 'indexer')
       expect(dead.reason).toBe('MaxDeliveryCountExceeded')
       expect(dead.attempts).toBe(5)
+      expect(dead.deadLetteredBy).toBe('app')
       expect(dead.description).toContain('Storage no disponible')
       expect(dead.body).toMatchObject({ data: { documentId: 'doc-agotado' } })
 

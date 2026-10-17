@@ -8,6 +8,7 @@
 
 import { randomUUID } from 'crypto'
 import type { EventType } from './topology'
+import type { DemoScenario } from './demo'
 
 export interface EventPayloads {
   'document.uploaded': {
@@ -45,6 +46,11 @@ export interface EventPayloads {
     eventType: string
     reason: string
     description: string
+  }
+  'demo.requested': {
+    /** Administrador que lo lanzó desde el panel; es quien recibe el aviso. */
+    requestedById: string
+    scenario: DemoScenario
   }
 }
 

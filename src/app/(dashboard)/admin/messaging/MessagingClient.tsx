@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Inbox, RefreshCw, Activity, AlertTriangle, RotateCcw, Trash2, Loader2, CheckCircle2 } from 'lucide-react'
+import {
+  Inbox, RefreshCw, Activity, AlertTriangle, RotateCcw, Trash2, Loader2, CheckCircle2, FlaskConical, Pause, Play, Send,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useToast } from '@/hooks/use-toast'
+import type { DemoScenario } from '@/lib/messaging/demo'
 
 interface SubscriptionStatus {
   name: string
@@ -34,6 +37,8 @@ interface MessagingState {
   peekLimit?: number
   subscriptions?: SubscriptionStatus[]
   deadLetters?: DeadLetterItem[]
+  /** Consumidores de la instancia que respondió (null si no están corriendo). */
+  worker?: WorkerSnapshot | null
 }
 
 interface ConsumerStats {
@@ -42,10 +47,29 @@ interface ConsumerStats {
   deadLettered: number
 }
 
+interface WorkerSnapshot {
+  pid: number
+  uptimeSeconds: number
+  stats: Record<string, ConsumerStats>
+  pausedUntil: string | null
+}
+
 interface PingResult {
   roundTripMs: number
-  worker: { pid: number; uptimeSeconds: number; stats: Record<string, ConsumerStats> }
+  worker: WorkerSnapshot
 }
+
+/** Escenarios del modo demostración: cada uno muestra uno o más mecanismos del bus. */
+const DEMO_ACTIONS: { scenario: DemoScenario; label: string; concepts: string; detail: string }[] = [
+  { scenario: 'publish', label: 'Publicar un evento', concepts: 'Asíncrono · Pub/sub · Ack', detail: 'Lo reciben las dos suscripciones; el notifier te avisa en la campana.' },
+  { scenario: 'transient', label: 'Falla transitoria', concepts: 'Ack · Reintentos', detail: 'El indexador falla 2 veces (espera 2 s y 4 s) y al tercer intento confirma.' },
+  { scenario: 'permanent', label: 'Falla permanente', concepts: 'DLQ · Alerta', detail: 'Va directo a la cola de errores, sin reintentar.' },
+  { scenario: 'exhaust', label: 'Agotar reintentos', concepts: 'DLQ · Alerta', detail: 'Falla 5 veces con espera creciente y cae a la cola de errores (~30 s).' },
+  { scenario: 'ttl', label: 'Evento con vida de 10 s', concepts: 'Retención · Alerta', detail: 'Con los consumidores en pausa, vence y el broker lo manda a la cola de errores.' },
+]
+
+/** El panel se refresca solo mientras está a la vista. */
+const AUTO_REFRESH_MS = 10_000
 
 const SUBSCRIPTION_LABELS: Record<string, string> = {
   indexer: 'Indexador RAG',
@@ -73,10 +97,12 @@ export function MessagingClient() {
   const [pinging, setPinging] = useState(false)
   const [ping, setPing] = useState<PingResult | null>(null)
   const [busyMessage, setBusyMessage] = useState<string | null>(null)
+  const [demoBusy, setDemoBusy] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const load = useCallback(async () => {
-    setRefreshing(true)
+  /** `silent`: refresco automático, sin girar el ícono de "Actualizar". */
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setRefreshing(true)
     try {
       const res = await fetch('/api/admin/messaging')
       const json = await res.json()
@@ -89,12 +115,14 @@ export function MessagingClient() {
     } catch {
       setLoadError('Error de conexión con el servidor')
     } finally {
-      setRefreshing(false)
+      if (!silent) setRefreshing(false)
     }
   }, [])
 
   useEffect(() => {
     load()
+    const timer = setInterval(() => !document.hidden && load({ silent: true }), AUTO_REFRESH_MS)
+    return () => clearInterval(timer)
   }, [load])
 
   async function handlePing() {
@@ -116,6 +144,29 @@ export function MessagingClient() {
       toast({ title: 'Error', description: 'No se pudo contactar al servidor', variant: 'destructive' })
     } finally {
       setPinging(false)
+    }
+  }
+
+  /** Modo demostración: publica un evento de prueba, o pausa/reanuda los consumidores. */
+  async function runDemo(body: { action: string; scenario?: DemoScenario }, done: string) {
+    setDemoBusy(body.scenario ?? body.action)
+    try {
+      const res = await fetch('/api/admin/messaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'No se pudo ejecutar', description: json.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: done })
+      await load({ silent: true })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo contactar al servidor', variant: 'destructive' })
+    } finally {
+      setDemoBusy(null)
     }
   }
 
@@ -154,7 +205,7 @@ export function MessagingClient() {
         Mensajería
       </h1>
       <p className="text-sm text-muted-foreground mt-1">
-        Bus de mensajes (Azure Service Bus): suscripciones, mensajes en cola y cola de errores.
+        Bus de mensajes (Azure Service Bus): suscripciones, mensajes en cola y cola de errores. Se actualiza cada 10 s.
       </p>
     </div>
   )
@@ -179,7 +230,7 @@ export function MessagingClient() {
           <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
           <div className="space-y-3">
             <p className="text-sm text-foreground">{loadError}</p>
-            <Button variant="outline" size="sm" onClick={load} disabled={refreshing}>
+            <Button variant="outline" size="sm" onClick={() => load()} disabled={refreshing}>
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> Reintentar
             </Button>
           </div>
@@ -202,6 +253,7 @@ export function MessagingClient() {
 
   const subscriptions = state.subscriptions ?? []
   const deadLetters = state.deadLetters ?? []
+  const pausedUntil = state.worker?.pausedUntil ?? null
   const count = (n: number) => (n >= (state.peekLimit ?? Infinity) ? `${n}+` : String(n))
 
   return (
@@ -216,7 +268,7 @@ export function MessagingClient() {
             {pinging ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Activity className="w-4 h-4 mr-2" />}
             Probar worker
           </Button>
-          <Button variant="outline" size="sm" onClick={load} disabled={refreshing}>
+          <Button variant="outline" size="sm" onClick={() => load()} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
@@ -232,6 +284,25 @@ export function MessagingClient() {
               ? 'Hay 1 mensaje en la cola de errores que requiere revisión.'
               : `Hay ${count(deadLetters.length)} mensajes en la cola de errores que requieren revisión.`}
           </p>
+        </div>
+      )}
+
+      {/* Consumidores en pausa (modo demostración) */}
+      {pausedUntil && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-warning/10 border border-warning/30 text-warning rounded-xl p-4">
+          <Pause className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium flex-1">
+            Consumidores en pausa: lo que se publique queda guardado en el broker y se procesa al reanudar. Si no los
+            reanudas, vuelven solos a las {new Date(pausedUntil).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={demoBusy !== null}
+            onClick={() => runDemo({ action: 'resume' }, 'Consumidores reanudados')}
+          >
+            <Play className="w-4 h-4 mr-1.5" /> Reanudar
+          </Button>
         </div>
       )}
 
@@ -255,7 +326,9 @@ export function MessagingClient() {
 
       {/* Suscripciones del topic */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {subscriptions.map((sub) => (
+        {subscriptions.map((sub) => {
+          const stats = state.worker?.stats?.[sub.name]
+          return (
           <div key={sub.name} className="card p-5 space-y-4">
             <div>
               <h2 className="font-semibold text-card-foreground">{SUBSCRIPTION_LABELS[sub.name] ?? sub.name}</h2>
@@ -273,6 +346,13 @@ export function MessagingClient() {
                 </p>
               </div>
             </div>
+            {stats && (
+              <p className="text-xs text-muted-foreground">
+                Procesados <span className="font-semibold text-foreground">{stats.processed}</span> · Reintentos{' '}
+                <span className="font-semibold text-foreground">{stats.retried}</span> · A la cola de errores{' '}
+                <span className="font-semibold text-foreground">{stats.deadLettered}</span>
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {sub.subjects.map((subject) => (
                 <span key={subject} className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -285,7 +365,65 @@ export function MessagingClient() {
               {humanizeDuration(sub.timeToLive)}
             </p>
           </div>
-        ))}
+          )
+        })}
+      </div>
+
+      {/* Modo demostración */}
+      <div className="card p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+              <FlaskConical className="w-4 h-4 text-primary" />
+              Demostración
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Eventos de prueba que recorren el mismo camino que los reales, sin tocar documentos ni incidentes. El
+              resultado se ve en los contadores, en la cola de errores y en la campana.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={demoBusy !== null}
+            onClick={() =>
+              pausedUntil
+                ? runDemo({ action: 'resume' }, 'Consumidores reanudados')
+                : runDemo({ action: 'pause' }, 'Consumidores en pausa: lo que publiques quedará esperando en el broker')
+            }
+          >
+            {demoBusy === 'pause' || demoBusy === 'resume' ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : pausedUntil ? (
+              <Play className="w-4 h-4 mr-2" />
+            ) : (
+              <Pause className="w-4 h-4 mr-2" />
+            )}
+            {pausedUntil ? 'Reanudar consumidores' : 'Pausar consumidores (durabilidad)'}
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {DEMO_ACTIONS.map((demo) => (
+            <button
+              key={demo.scenario}
+              type="button"
+              disabled={demoBusy !== null}
+              onClick={() => runDemo({ action: 'demo', scenario: demo.scenario }, `Evento publicado: ${demo.label.toLowerCase()}`)}
+              className="text-left rounded-lg border border-border bg-muted/30 hover:bg-muted/60 p-3 transition-colors disabled:opacity-60"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-foreground">{demo.label}</span>
+                {demoBusy === demo.scenario ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Send className="w-3.5 h-3.5 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-[11px] font-mono text-primary mt-1">{demo.concepts}</p>
+              <p className="text-xs text-muted-foreground mt-1">{demo.detail}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Cola de errores (DLQ) */}

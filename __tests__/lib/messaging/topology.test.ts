@@ -28,6 +28,12 @@ describe('topología de mensajería', () => {
     expect(Array.from(subscribed).sort()).toEqual([...EVENT_TYPES].sort())
   })
 
+  it('el evento de demostración llega a las dos suscripciones (pub/sub)', () => {
+    const receivers = buildTopology('azure').topic.subscriptions.filter((s) => s.subjects.includes('demo.requested'))
+
+    expect(receivers.map((s) => s.name)).toEqual(['indexer', 'notifier'])
+  })
+
   it('los eventos van a la DLQ al expirar; las peticiones síncronas simplemente se descartan', () => {
     const topology = buildTopology('azure')
 

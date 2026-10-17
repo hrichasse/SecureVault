@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,30 +25,47 @@ interface NotificationItem {
   createdAt: string
 }
 
-const REFRESH_MS = 60_000
+const REFRESH_MS = 15_000
 
 /** Campana del panel: avisos generados por el suscriptor "notifier" del bus de mensajes. */
 export function NotificationBell() {
   const router = useRouter()
+  const { toast } = useToast()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)
+  /** Avisos ya mostrados; null hasta la primera carga, que no se anuncia. */
+  const known = useRef<Set<string> | null>(null)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications')
       if (!res.ok) return
       const { data } = await res.json()
-      setItems(data.items)
+      const fresh: NotificationItem[] = data.items
+
+      // Lo que llegó desde la última consulta aparece también como aviso emergente.
+      const arrived = known.current ? fresh.filter((n) => !n.readAt && !known.current!.has(n.id)) : []
+      if (arrived.length === 1) toast({ title: arrived[0].title, description: arrived[0].body })
+      if (arrived.length > 1) toast({ title: `${arrived.length} avisos nuevos`, description: arrived[0].title })
+      known.current = new Set(fresh.map((n) => n.id))
+
+      setItems(fresh)
       setUnread(data.unreadCount)
     } catch {
       // Sin conexión: se conserva lo último mostrado y se reintenta en el próximo ciclo.
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     load()
-    const timer = setInterval(load, REFRESH_MS)
-    return () => clearInterval(timer)
+    // Con la pestaña oculta no se consulta; al volver a ella se actualiza al tiro.
+    const timer = setInterval(() => !document.hidden && load(), REFRESH_MS)
+    const onVisible = () => !document.hidden && load()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [load])
 
   const handleOpenChange = (open: boolean) => {

@@ -5,8 +5,8 @@ import type { AnyEventEnvelope } from '@/lib/messaging/events'
 
 const sendMessages = jest.fn()
 const isMessagingEnabled = jest.fn()
-const indexer = jest.fn<Promise<void>, [AnyEventEnvelope]>()
-const notifier = jest.fn<Promise<void>, [AnyEventEnvelope]>()
+const indexer = jest.fn<Promise<void>, [AnyEventEnvelope, unknown?]>()
+const notifier = jest.fn<Promise<void>, [AnyEventEnvelope, unknown?]>()
 
 jest.mock('@/lib/messaging/bus', () => ({
   isMessagingEnabled: () => isMessagingEnabled(),
@@ -17,8 +17,8 @@ jest.mock('@/lib/messaging/bus', () => ({
 
 jest.mock('@/lib/messaging/subscriptions', () => ({
   SUBSCRIPTION_CONSUMERS: {
-    indexer: { maxConcurrentCalls: 1, handler: (e: AnyEventEnvelope) => indexer(e) },
-    notifier: { maxConcurrentCalls: 4, handler: (e: AnyEventEnvelope) => notifier(e) },
+    indexer: { maxConcurrentCalls: 1, handler: (e: AnyEventEnvelope, c: unknown) => indexer(e, c) },
+    notifier: { maxConcurrentCalls: 4, handler: (e: AnyEventEnvelope, c: unknown) => notifier(e, c) },
   },
 }))
 
@@ -48,6 +48,17 @@ describe('publishEvent', () => {
     expect(options.abortSignal).toBeInstanceOf(AbortSignal)
     expect(indexer).not.toHaveBeenCalled()
     expect(notifier).not.toHaveBeenCalled()
+    // Sin vida propia, el mensaje usa la retención de la suscripción.
+    expect(sent).not.toHaveProperty('timeToLive')
+  })
+
+  it('puede publicar un evento con vida propia (retención por mensaje)', async () => {
+    isMessagingEnabled.mockReturnValue(true)
+    sendMessages.mockResolvedValue(undefined)
+
+    await publishEvent('incident.created', incident, { timeToLive: 10_000 })
+
+    expect(sendMessages.mock.calls[0][0].timeToLive).toBe(10_000)
   })
 
   it('sin broker configurado: reparte en línea a los suscriptores de ese tipo de evento', async () => {
@@ -57,7 +68,7 @@ describe('publishEvent', () => {
 
     expect(sendMessages).not.toHaveBeenCalled()
     expect(indexer).toHaveBeenCalledTimes(1)
-    expect(notifier).toHaveBeenCalledTimes(1)
+    expect(notifier).toHaveBeenCalledWith(expect.objectContaining({ type: 'document.uploaded' }), { deliveryCount: 0 })
   })
 
   it('en línea respeta los filtros: un incidente no llega al indexador', async () => {

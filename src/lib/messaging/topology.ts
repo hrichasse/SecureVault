@@ -38,6 +38,8 @@ export const EVENT_TYPES = [
   'access-request.created',
   'access-request.reviewed',
   'messaging.dead-lettered',
+  // Modo demostración del panel (demo.ts): recorre el bus sin tocar datos reales.
+  'demo.requested',
 ] as const
 export type EventType = (typeof EVENT_TYPES)[number]
 
@@ -83,7 +85,7 @@ export function buildTopology(flavor: BrokerFlavor, prefix: string = DEFAULT_PRE
       subscriptions: [
         {
           name: SUB_INDEXER,
-          subjects: ['document.uploaded'],
+          subjects: ['document.uploaded', 'demo.requested'],
           lockDuration: 'PT1M',
           maxDeliveryCount: 5,
           defaultMessageTimeToLive: retention,
@@ -97,6 +99,7 @@ export function buildTopology(flavor: BrokerFlavor, prefix: string = DEFAULT_PRE
             'access-request.created',
             'access-request.reviewed',
             'messaging.dead-lettered',
+            'demo.requested',
           ],
           lockDuration: 'PT30S',
           maxDeliveryCount: 5,

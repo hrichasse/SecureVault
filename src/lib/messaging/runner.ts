@@ -17,7 +17,14 @@ import { EVENT_TYPES, type EventType } from './topology'
 import { decideSettlement, PermanentError } from './settlement'
 import type { AnyEventEnvelope } from './events'
 
-export type EventHandler = (event: AnyEventEnvelope) => Promise<void>
+export interface HandlerContext {
+  /** Entregas previas del mensaje (0 en la primera). */
+  deliveryCount: number
+  /** true cuando un operador lo reprocesa desde la DLQ. */
+  reprocess?: boolean
+}
+
+export type EventHandler = (event: AnyEventEnvelope, context: HandlerContext) => Promise<void>
 
 export interface ConsumerStats {
   processed: number
@@ -86,7 +93,7 @@ export async function handleMessage(
   let failure: unknown
   let failed = false
   try {
-    await ctx.handler(parseEnvelope(message.body))
+    await ctx.handler(parseEnvelope(message.body), { deliveryCount: message.deliveryCount ?? 0 })
   } catch (error) {
     failed = true
     failure = error

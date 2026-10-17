@@ -55,8 +55,9 @@ describe('handleMessage (ack según el resultado del handler)', () => {
     const receiver = fakeReceiver()
     const ctx = context(jest.fn().mockResolvedValue(undefined))
 
-    await run(receiver, message(), ctx)
+    await run(receiver, message({ deliveryCount: 2 }), ctx)
 
+    expect(ctx.handler).toHaveBeenCalledWith(validEvent, { deliveryCount: 2 })
     expect(receiver.completeMessage).toHaveBeenCalledTimes(1)
     expect(receiver.abandonMessage).not.toHaveBeenCalled()
     expect(ctx.stats).toMatchObject({ processed: 1, retried: 0, deadLettered: 0 })

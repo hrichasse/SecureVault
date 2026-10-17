@@ -44,7 +44,7 @@ servidor (`src/instrumentation.ts`).
 | **Reintentos** | Hasta 5 entregas con backoff exponencial (2 s, 4 s, 8 s, 16 s). Un error permanente (PDF ilegible, mensaje mal formado) no se reintenta. | `settlement.ts` |
 | **DLQ** | Cola de errores por suscripción, con motivo, descripción e intentos. Desde el panel se reprocesa o se descarta cada mensaje. | `dead-letter.ts` |
 | **Retención** | TTL por entidad: 7 días para eventos (al expirar van a la DLQ), 30 s para peticiones síncronas y 1 min para sus respuestas (al expirar se descartan). | `topology.ts` |
-| **Alertas** | Cada mensaje que cae a la DLQ genera un aviso para los administradores del sistema y un banner en el panel. En Azure se complementa con una regla de Azure Monitor. | `consumers.ts`, `notification.service.ts` |
+| **Alertas** | Cada mensaje que cae a la DLQ —lo mande un consumidor o lo mueva el propio broker al vencer— genera un aviso para los administradores del sistema: aparece en la campana y como aviso emergente. El panel muestra además un banner. En Azure se complementa con una regla de Azure Monitor. | `consumers.ts`, `dead-letter.ts`, `notification.service.ts` |
 
 Todo el código del bus está en `src/lib/messaging/`. Las entidades (topic,
 suscripciones, colas y sus tiempos) se definen **una sola vez** en `topology.ts`;
@@ -59,6 +59,7 @@ de ahí salen la configuración del emulador y el aprovisionamiento en Azure.
 | `access-request.created` | Solicitud de acceso | `notifier` |
 | `access-request.reviewed` | Aprobación o rechazo | `notifier` |
 | `messaging.dead-lettered` | Un consumidor, al mandar un mensaje a la DLQ | `notifier` |
+| `demo.requested` | Los botones de *Demostración* del panel | `indexer` (simula el fallo pedido) y `notifier` (avisa a quien lo lanzó) |
 
 Los consumidores son **idempotentes**, porque el broker puede entregar un mismo
 mensaje más de una vez: la indexación reemplaza los fragmentos del documento, y
@@ -161,7 +162,11 @@ Esa cadena es pública y fija: es la del emulador, no un secreto. Al iniciar
 ## Operación
 
 El panel **Administración → Mensajería** (solo administrador del sistema) muestra,
-por suscripción, los mensajes en cola y en la cola de errores.
+por suscripción, los mensajes en cola, en la cola de errores y cuántos se
+procesaron, reintentaron o mandaron a la DLQ. Se actualiza solo cada 10 s.
+
+Los mensajes que el propio broker mueve a la DLQ (por ejemplo, los que vencen) no
+pasan por ningún consumidor: una revisión cada 15 s los detecta y genera su alerta.
 
 | Motivo en la DLQ | Qué pasó | Qué hacer |
 |---|---|---|
@@ -172,6 +177,27 @@ por suscripción, los mensajes en cola y en la cola de errores.
 
 **Reprocesar** ejecuta de nuevo el handler de esa suscripción; si vuelve a fallar,
 el mensaje se queda en la DLQ y el panel muestra el error.
+
+## Demostración
+
+La sección **Demostración** del panel provoca cada caso con eventos de prueba
+(`demo.requested`), que recorren el mismo camino que los reales sin tocar
+documentos ni incidentes.
+
+| Para mostrar | Haz esto | Se ve en |
+|---|---|---|
+| Síncrono | **Probar worker** | «El worker respondió en N ms» |
+| Asíncrono y pub/sub | **Publicar un evento** | El botón responde al instante; *Procesados* sube en las dos tarjetas y llega un aviso a la campana |
+| Ack con reintentos | **Falla transitoria** | *Reintentos* +2 en el indexador y luego *Procesados* +1 |
+| DLQ por error permanente | **Falla permanente** | Una fila en la cola de errores con 1 intento, y una alerta |
+| DLQ por reintentos agotados | **Agotar reintentos** | Tras ~30 s, una fila con 5 intentos, y una alerta |
+| Durabilidad | **Pausar consumidores**, publicar eventos y **Reanudar** | *En cola* sube mientras están en pausa y vuelve a 0 al reanudar |
+| Retención | Con los consumidores en pausa, **Evento con vida de 10 s**; espera y **Reanuda** | Una fila `TTLExpiredException` con 0 intentos por suscripción, y sus alertas |
+| Alertas | Cualquiera de los casos de DLQ | Aviso emergente y la campana con «Mensaje en la cola de errores» |
+
+La pausa afecta solo a la instancia que atendió el clic y se levanta sola a los
+5 minutos. Los avisos de demostración solo los recibe quien pulsó el botón; las
+alertas de DLQ, todos los administradores del sistema.
 
 ## Decisiones y límites conocidos
 

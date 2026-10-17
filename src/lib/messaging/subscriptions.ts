@@ -8,6 +8,7 @@
 
 import { SUB_INDEXER, SUB_NOTIFIER } from './topology'
 import type { EventHandler } from './runner'
+import { simulateDemoProcessing } from './demo'
 import { indexDocumentFromStorage } from '@/modules/documents/indexing.service'
 import { notifyFromEvent } from '@/modules/notifications/notification.service'
 
@@ -21,7 +22,9 @@ export const SUBSCRIPTION_CONSUMERS: Record<string, SubscriptionConsumer> = {
   [SUB_INDEXER]: {
     // De a uno: la indexación llama a la API de embeddings, que tiene rate limit.
     maxConcurrentCalls: 1,
-    handler: async (event) => {
+    handler: async (event, context) => {
+      // Modo demostración del panel: simula el fallo que pide el escenario.
+      if (event.type === 'demo.requested') return simulateDemoProcessing(event, context)
       if (event.type !== 'document.uploaded') return
       const outcome = await indexDocumentFromStorage(event.data.documentId)
       console.log(`[Messaging] indexer: documento ${event.data.documentId} →`, JSON.stringify(outcome))

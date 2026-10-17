@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/prisma'
 import type { AnyEventEnvelope } from '@/lib/messaging/events'
+import { DEMO_LABELS } from '@/lib/messaging/demo'
 
 export type Audience =
   | { kind: 'company-admins'; companyId: string; exceptUserId?: string }
@@ -70,6 +71,15 @@ export function draftNotification(event: AnyEventEnvelope): NotificationDraft | 
         audience: { kind: 'system-admins' },
         title: 'Mensaje en la cola de errores (DLQ)',
         body: `Un evento ${eventType} falló en "${subscription}": ${reason}.`,
+        href: '/admin/messaging',
+      }
+    }
+    case 'demo.requested': {
+      const { requestedById, scenario } = event.data
+      return {
+        audience: { kind: 'user', userId: requestedById },
+        title: 'Evento de demostración recibido',
+        body: `El notifier recibió el evento «${DEMO_LABELS[scenario]}».`,
         href: '/admin/messaging',
       }
     }

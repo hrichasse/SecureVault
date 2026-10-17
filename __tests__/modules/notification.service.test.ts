@@ -51,6 +51,15 @@ describe('draftNotification', () => {
     expect(draft).toMatchObject({ audience: { kind: 'system-admins' }, href: '/admin/messaging' })
     expect(draft?.body).toBe('Un evento document.uploaded falló en "indexer": PdfUnparseable.')
   })
+
+  it('el evento de demostración se le avisa solo a quien lo lanzó', () => {
+    expect(draftNotification(event('demo.requested', { requestedById: 'admin-7', scenario: 'transient' }))).toEqual({
+      audience: { kind: 'user', userId: 'admin-7' },
+      title: 'Evento de demostración recibido',
+      body: 'El notifier recibió el evento «falla transitoria».',
+      href: '/admin/messaging',
+    })
+  })
 })
 
 describe('notifyFromEvent', () => {

@@ -3,6 +3,8 @@
  * POST /api/admin/messaging — acciones del operador:
  *        { action: 'ping' }                                         request/reply contra el worker
  *        { action: 'reprocess' | 'discard', subscription, sequenceNumber }   gestión de la DLQ
+ *        { action: 'demo', scenario }                               modo demostración (ver demo.ts)
+ *        { action: 'pause' | 'resume' }                             pausa los consumidores de esta instancia
  *
  * Solo para el ADMIN del sistema.
  */
@@ -13,7 +15,9 @@ import { getAuthUser } from '@/lib/auth-utils'
 import { getBrokerFlavor, isMessagingEnabled } from '@/lib/messaging/bus'
 import { getSubscriptionsStatus, listDeadLetters, settleDeadLetter, PEEK_LIMIT } from '@/lib/messaging/dead-letter'
 import { requestReply, RpcTimeoutError } from '@/lib/messaging/rpc'
-import type { WorkerInfo } from '@/lib/messaging/consumers'
+import { getWorkerInfo, pauseConsumers, resumeConsumers, type WorkerInfo } from '@/lib/messaging/consumers'
+import { DEMO_SCENARIOS, DEMO_TTL_MS } from '@/lib/messaging/demo'
+import { publishEvent } from '@/lib/messaging/publisher'
 
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('ping') }),
@@ -22,6 +26,9 @@ const actionSchema = z.discriminatedUnion('action', [
     subscription: z.string().min(1),
     sequenceNumber: z.string().min(1),
   }),
+  z.object({ action: z.literal('demo'), scenario: z.enum(DEMO_SCENARIOS) }),
+  z.object({ action: z.literal('pause') }),
+  z.object({ action: z.literal('resume') }),
 ])
 
 async function requireSystemAdmin() {
@@ -41,7 +48,15 @@ export async function GET() {
 
     const [subscriptions, deadLetters] = await Promise.all([getSubscriptionsStatus(), listDeadLetters()])
     return NextResponse.json({
-      data: { enabled: true, broker: getBrokerFlavor(), peekLimit: PEEK_LIMIT, subscriptions, deadLetters },
+      data: {
+        enabled: true,
+        broker: getBrokerFlavor(),
+        peekLimit: PEEK_LIMIT,
+        subscriptions,
+        deadLetters,
+        // Estadísticas de los consumidores de esta instancia (no requieren pasar por el bus).
+        worker: getWorkerInfo(),
+      },
     })
   } catch (error) {
     console.error('[GET /api/admin/messaging]', error)
@@ -51,7 +66,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    if (!(await requireSystemAdmin())) {
+    const user = await requireSystemAdmin()
+    if (!user) {
       return NextResponse.json({ error: 'No autorizado. Solo Super Admin.' }, { status: 403 })
     }
     if (!isMessagingEnabled()) {
@@ -74,6 +90,18 @@ export async function POST(request: Request) {
         }
         throw error
       }
+    }
+
+    if (parsed.data.action === 'demo') {
+      const { scenario } = parsed.data
+      await publishEvent('demo.requested', { requestedById: user.id, scenario }, scenario === 'ttl' ? { timeToLive: DEMO_TTL_MS } : {})
+      return NextResponse.json({ data: { ok: true } })
+    }
+    if (parsed.data.action === 'pause') {
+      return NextResponse.json({ data: { changed: await pauseConsumers() } })
+    }
+    if (parsed.data.action === 'resume') {
+      return NextResponse.json({ data: { changed: resumeConsumers() } })
     }
 
     const result = await settleDeadLetter(parsed.data.subscription, parsed.data.sequenceNumber, parsed.data.action)
