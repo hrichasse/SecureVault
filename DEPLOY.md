@@ -132,11 +132,11 @@ enlace por defecto del correo pasa por ahí. Para que el navegador vaya directo 
 ```html
 <h2>Restablecer contraseña</h2>
 <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta de SecureVault.</p>
-<p><a href="{{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Crear una nueva contraseña</a></p>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Crear una nueva contraseña</a></p>
 <p>Si no la pediste, puedes ignorar este correo.</p>
 ```
 
-3. **Save**. La ruta `/api/auth/confirm` debe estar desplegada antes de guardar el cambio,
+3. **Save**. La ruta `/auth/confirm` debe estar desplegada antes de guardar el cambio,
    y **Site URL** (paso anterior) debe ser el dominio público de la app.
 
 ---

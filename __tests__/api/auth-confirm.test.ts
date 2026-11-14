@@ -11,15 +11,16 @@ jest.mock('@/lib/supabase/route-client', () => ({
   }),
 }))
 
-import { GET } from '@/app/api/auth/confirm/route'
+import { GET } from '@/app/auth/confirm/route'
+import { GET as legacyGET } from '@/app/api/auth/confirm/route'
 import { getAppOrigin, safeNextPath } from '@/lib/app-origin'
 
 const call = (query: string, host = 'localhost:3000') =>
-  GET(new NextRequest(`http://${host}/api/auth/confirm?${query}`, { headers: { host } }))
+  GET(new NextRequest(`http://${host}/auth/confirm?${query}`, { headers: { host } }))
 
 beforeEach(() => verifyOtp.mockReset())
 
-describe('GET /api/auth/confirm (enlace del correo)', () => {
+describe('GET /auth/confirm (enlace del correo)', () => {
   it('verifica el token de recuperación y lleva a /reset-password', async () => {
     verifyOtp.mockResolvedValue({ error: null })
     const res = await call('token_hash=abc&type=recovery&next=/reset-password')
@@ -55,6 +56,16 @@ describe('GET /api/auth/confirm (enlace del correo)', () => {
     verifyOtp.mockResolvedValue({ error: null })
     const res = await call('token_hash=abc&type=recovery', 'a1b2c3:8080')
     expect(res.headers.get('location')).toBe('https://securevault-ai.azurewebsites.net/reset-password')
+  })
+
+  it('la ruta anterior /api/auth/confirm sigue funcionando para los correos ya enviados', async () => {
+    verifyOtp.mockResolvedValue({ error: null })
+    const res = await legacyGET(
+      new NextRequest('http://localhost:3000/api/auth/confirm?token_hash=abc&type=recovery', {
+        headers: { host: 'localhost:3000' },
+      })
+    )
+    expect(res.headers.get('location')).toBe('http://localhost:3000/reset-password')
   })
 })
 
