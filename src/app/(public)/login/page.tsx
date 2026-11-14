@@ -9,7 +9,21 @@ export const metadata: Metadata = {
   title: 'Iniciar sesión — SecureVault',
 }
 
-export default async function LoginPage() {
+// Mensajes para los ?error= con que otras rutas redirigen al login
+const LOGIN_ERRORS: Record<string, string> = {
+  invalid_reset_link: 'El enlace para restablecer la contraseña no es válido o ya expiró. Pide uno nuevo.',
+  invalid_link: 'El enlace no es válido o ya expiró.',
+  google_oauth_failed: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+  session_exchange_failed: 'No se pudo completar el inicio de sesión. Intenta de nuevo.',
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: { error?: string }
+}) {
+  const initialError = searchParams?.error ? LOGIN_ERRORS[searchParams.error] ?? null : null
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -75,7 +89,7 @@ export default async function LoginPage() {
           </div>
 
           {/* Se lee en cada request: basta definir GOOGLE_CLIENT_ID en Azure, sin recompilar */}
-          <LoginForm googleClientId={process.env.GOOGLE_CLIENT_ID} />
+          <LoginForm googleClientId={process.env.GOOGLE_CLIENT_ID} initialError={initialError} />
 
           <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
             <Lock className="h-3 w-3" />

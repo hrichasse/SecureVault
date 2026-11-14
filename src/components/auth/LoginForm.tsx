@@ -13,9 +13,16 @@ import { GoogleSignInButton } from './GoogleSignInButton'
  * LoginForm — formulario de inicio de sesión con Google y email/password.
  *
  * @param googleClientId - Client ID web de Google (GOOGLE_CLIENT_ID), leído en el servidor
+ * @param initialError - Mensaje a mostrar al cargar (p. ej. enlace de recuperación vencido)
  */
-export function LoginForm({ googleClientId }: { googleClientId?: string }) {
-  const [error, setError] = useState<string | null>(null)
+export function LoginForm({
+  googleClientId,
+  initialError = null,
+}: {
+  googleClientId?: string
+  initialError?: string | null
+}) {
+  const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 

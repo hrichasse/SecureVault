@@ -7,22 +7,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
-function getAppOrigin(request: NextRequest) {
-  const host = request.headers.get('host') ?? ''
-
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
-    return `http://${host}`
-  }
-
-  // En Azure el host puede llegar como contenedor interno (xxxxx:8080).
-  // Para cualquier entorno no-local usamos siempre el dominio público.
-  return 'https://securevault-ai.azurewebsites.net'
-}
+import { getAppOrigin } from '@/lib/app-origin'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const origin = getAppOrigin(request)
+  const origin = getAppOrigin(request.headers.get('host'))
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
