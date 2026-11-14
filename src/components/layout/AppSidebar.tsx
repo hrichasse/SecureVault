@@ -14,6 +14,7 @@ import {
   Settings,
   Building2,
   Inbox,
+  Radio,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -151,6 +152,22 @@ export function AppSidebar({ role }: AppSidebarProps) {
                       >
                         <Inbox className="h-4 w-4 flex-shrink-0" />
                         {!collapsed && <span>Mensajería</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {role === 'admin' && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        href="/admin/streaming"
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors',
+                          pathname === '/admin/streaming' && 'bg-primary/10 text-primary font-semibold'
+                        )}
+                      >
+                        <Radio className="h-4 w-4 flex-shrink-0" />
+                        {!collapsed && <span>Streaming (Kafka)</span>}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

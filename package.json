@@ -22,7 +22,12 @@
     "mq:up": "npm run mq:config && docker compose -f infra/servicebus/docker-compose.yaml up -d --force-recreate emulator",
     "mq:down": "docker compose -f infra/servicebus/docker-compose.yaml down",
     "mq:logs": "docker logs -f sv-servicebus-emulator",
-    "test:mq": "MQ_E2E=1 SERVICEBUS_ENTITY_PREFIX=test- MESSAGING_RETRY_BASE_MS=50 SERVICEBUS_CONNECTION_STRING='Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;' jest --runInBand --forceExit __tests__/integration"
+    "test:mq": "MQ_E2E=1 SERVICEBUS_ENTITY_PREFIX=test- MESSAGING_RETRY_BASE_MS=50 SERVICEBUS_CONNECTION_STRING='Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;' jest --runInBand --forceExit __tests__/integration",
+    "kafka:up": "docker compose -f infra/kafka/docker-compose.yaml up -d",
+    "kafka:down": "docker compose -f infra/kafka/docker-compose.yaml down",
+    "kafka:producer": "tsx scripts/kafka/producer-simulator.ts",
+    "kafka:relay": "tsx scripts/kafka/audit-relay.ts",
+    "kafka:consumer": "tsx scripts/kafka/consumer-metrics.ts"
   },
   "dependencies": {
     "@azure/service-bus": "^7.9.5",
@@ -54,6 +59,7 @@
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
     "jose": "^5.10.0",
+    "kafkajs": "^2.2.4",
     "long": "^5.3.2",
     "lucide-react": "^0.462.0",
     "next": "14.2.29",
@@ -90,6 +96,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.3"
   },
   "prisma": {

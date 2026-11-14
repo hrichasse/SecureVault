@@ -76,6 +76,21 @@ npm run mq:up
 
 Arquitectura, pruebas y puesta en producción: [docs/mensajeria.md](docs/mensajeria.md).
 
+### 7. Streaming de datos con Apache Kafka (opcional, local)
+
+Los eventos de negocio (documentos, accesos, incidentes, certificaciones) se
+publican en el topic `securevault.eventos-negocio` y se consumen para calcular
+métricas y alertas en tiempo real. Requiere Docker:
+
+```bash
+npm run kafka:up        # Kafka + topic + Kafka UI (http://localhost:8080)
+npm run kafka:producer  # productor (simulador de eventos)
+npm run kafka:consumer  # consumidor (métricas en vivo en la terminal)
+```
+
+Panel web en `/admin/streaming` con `KAFKA_BROKERS=localhost:9092`.
+Detalle: [docs/streaming.md](docs/streaming.md).
+
 ## Estructura del Proyecto
 
 ```
@@ -118,6 +133,10 @@ src/
 | `npm run mq:up` / `mq:down` | Levantar / detener el emulador de Service Bus |
 | `npm run test:mq` | Tests de integración de la mensajería (requiere el emulador) |
 | `npm run mq:provision` | Crear las entidades de mensajería en Azure |
+| `npm run kafka:up` / `kafka:down` | Levantar / detener Kafka y Kafka UI (Docker) |
+| `npm run kafka:producer` | Productor: simulador de eventos de negocio |
+| `npm run kafka:relay` | Productor: acciones reales de la app (tabla AuditLog) |
+| `npm run kafka:consumer` | Consumidor: métricas y alertas en tiempo real |
 
 ## Módulos Principales
 
