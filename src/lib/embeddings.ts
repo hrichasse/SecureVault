@@ -5,12 +5,20 @@
  * relevante dentro de los documentos de la empresa.
  */
 
+import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/types'
 
 const EMBEDDING_MODEL = 'models/gemini-embedding-001'
 const API_BASE = `https://generativelanguage.googleapis.com/v1beta/${EMBEDDING_MODEL}`
+
+/**
+ * Dimensiones del vector. Debe coincidir con la columna vector(768) de
+ * DocumentChunk.embeddingVector. 768 en vez de 3072 (el valor por defecto):
+ * 4 veces menos espacio con una pérdida de calidad mínima.
+ */
+export const EMBEDDING_DIMENSIONS = 768
 
 /** Tamaño objetivo de cada fragmento, en caracteres (~250 tokens). */
 export const CHUNK_SIZE = 1000
@@ -64,6 +72,7 @@ export async function generateEmbedding(
   const data = await callEmbeddingApi<{ embedding: { values: number[] } }>('embedContent', {
     content: { parts: [{ text }] },
     taskType,
+    outputDimensionality: EMBEDDING_DIMENSIONS,
   })
   return data.embedding.values
 }
@@ -77,7 +86,12 @@ export async function generateEmbeddings(
   for (let i = 0; i < texts.length; i += EMBED_BATCH) {
     const batch = texts.slice(i, i + EMBED_BATCH)
     const data = await callEmbeddingApi<{ embeddings: { values: number[] }[] }>('batchEmbedContents', {
-      requests: batch.map((text) => ({ model: EMBEDDING_MODEL, content: { parts: [{ text }] }, taskType })),
+      requests: batch.map((text) => ({
+        model: EMBEDDING_MODEL,
+        content: { parts: [{ text }] },
+        taskType,
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      })),
     })
     if (data.embeddings?.length !== batch.length) {
       throw new Error(`La API devolvió ${data.embeddings?.length ?? 0} embeddings para ${batch.length} textos`)
@@ -87,21 +101,15 @@ export async function generateEmbeddings(
   return vectors
 }
 
-// ── Similitud coseno entre dos vectores ─────────────────────
+// ── Vector → literal de pgvector ────────────────────────────
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  // Vectores de distinto tamaño (indexados con otra configuración) no se comparan
-  if (!Array.isArray(b) || a.length !== b.length) return 0
-  let dot = 0
-  let normA = 0
-  let normB = 0
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
+/** Convierte un embedding al formato de texto de pgvector: "[0.1,0.2,...]". */
+export function toVectorLiteral(values: number[]): string {
+  if (values.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(`El embedding tiene ${values.length} dimensiones y se esperaban ${EMBEDDING_DIMENSIONS}`)
   }
-  if (normA === 0 || normB === 0) return 0
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB))
+  if (!values.every(Number.isFinite)) throw new Error('El embedding contiene valores no numéricos')
+  return `[${values.join(',')}]`
 }
 
 // ── Dividir texto en chunks ─────────────────────────────────
@@ -213,16 +221,18 @@ export async function indexDocument(documentId: string, text: string): Promise<n
 
   const vectors = await generateEmbeddings(chunks, 'RETRIEVAL_DOCUMENT')
 
+  // Prisma no escribe columnas vector: un solo INSERT con todas las filas.
+  // "embedding" (JSON legado) va como [] para que el código anterior lo ignore.
+  const rows = chunks.map(
+    (content, chunkIndex) =>
+      Prisma.sql`(${randomUUID()}, ${documentId}, ${chunkIndex}, ${content}, '[]'::jsonb, ${toVectorLiteral(vectors[chunkIndex])}::vector)`
+  )
+
   await prisma.$transaction([
     prisma.documentChunk.deleteMany({ where: { documentId } }),
-    prisma.documentChunk.createMany({
-      data: chunks.map((content, chunkIndex) => ({
-        documentId,
-        chunkIndex,
-        content,
-        embedding: vectors[chunkIndex] as unknown as Prisma.InputJsonValue,
-      })),
-    }),
+    prisma.$executeRaw`
+      INSERT INTO "DocumentChunk" ("id", "documentId", "chunkIndex", "content", "embedding", "embeddingVector")
+      VALUES ${Prisma.join(rows)}`,
   ])
 
   console.log(`[Embeddings] Indexed ${chunks.length} chunks for document ${documentId}`)
@@ -275,31 +285,31 @@ export async function semanticSearch(
   scope: SearchScope,
   topK = 5
 ): Promise<SemanticSearchResult[]> {
-  // 1. Generar embedding de la consulta
-  const queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY')
-
-  // 2. Obtener los chunks de los documentos que el usuario puede leer
-  const chunks = await prisma.documentChunk.findMany({
-    where: {
-      document: readableDocumentsWhere(scope),
-    },
-    select: {
-      content: true,
-      embedding: true,
-      document: { select: { name: true } },
-    },
+  // 1. Documentos que el usuario puede leer (el filtro de permisos queda en Prisma)
+  const documents = await prisma.document.findMany({
+    where: readableDocumentsWhere(scope),
+    select: { id: true, name: true },
   })
+  if (documents.length === 0) return []
+  const names = new Map(documents.map((d) => [d.id, d.name]))
 
-  if (chunks.length === 0) return []
+  // 2. Embedding de la pregunta
+  const queryVector = toVectorLiteral(await generateEmbedding(query, 'RETRIEVAL_QUERY'))
 
-  // 3. Calcular similitud coseno con cada chunk
-  return chunks
-    .map((chunk) => ({
-      content: chunk.content,
-      documentName: chunk.document.name,
-      similarity: cosineSimilarity(queryEmbedding, chunk.embedding as number[]),
+  // 3. pgvector ordena por distancia coseno (<=>) y devuelve solo los topK más cercanos
+  const rows = await prisma.$queryRaw<{ content: string; documentId: string; similarity: number }[]>`
+    SELECT "content", "documentId", 1 - ("embeddingVector" <=> ${queryVector}::vector) AS similarity
+    FROM "DocumentChunk"
+    WHERE "documentId" = ANY(${documents.map((d) => d.id)}::text[])
+      AND "embeddingVector" IS NOT NULL
+    ORDER BY "embeddingVector" <=> ${queryVector}::vector
+    LIMIT ${topK}`
+
+  return rows
+    .map((r) => ({
+      content: r.content,
+      documentName: names.get(r.documentId) ?? 'Documento',
+      similarity: Number(r.similarity),
     }))
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, topK)
     .filter((r) => r.similarity > 0.3) // umbral mínimo de relevancia
 }

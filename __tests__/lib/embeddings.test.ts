@@ -3,7 +3,27 @@
  */
 jest.mock('@/lib/prisma', () => ({ prisma: {} }))
 
-import { splitTextIntoChunks, readableDocumentsWhere, CHUNK_SIZE } from '@/lib/embeddings'
+import {
+  splitTextIntoChunks,
+  readableDocumentsWhere,
+  toVectorLiteral,
+  CHUNK_SIZE,
+  EMBEDDING_DIMENSIONS,
+} from '@/lib/embeddings'
+
+describe('toVectorLiteral (formato de pgvector)', () => {
+  it('convierte el vector al texto que entiende pgvector', () => {
+    const v = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? 0.5 : i === 1 ? -0.25 : 0))
+    expect(toVectorLiteral(v).startsWith('[0.5,-0.25,0,')).toBe(true)
+  })
+
+  it('rechaza vectores de otro tamaño o con valores inválidos', () => {
+    expect(() => toVectorLiteral([0.1, 0.2])).toThrow(/dimensiones/)
+    const bad = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0)
+    bad[3] = NaN
+    expect(() => toVectorLiteral(bad)).toThrow(/no numéricos/)
+  })
+})
 
 const sentence = 'Este es un texto de prueba que simula una oración de un documento real. '
 
