@@ -6,16 +6,17 @@
  * - Si el usuario ya existe en Prisma → /dashboard
  * - Si es nuevo → redirigir a completar registro → /register/complete
  *
- * IMPORTANTE: Se usa createServerClient directamente (no createClient())
- * para poder aplicar las cookies de sesión sobre el propio NextResponse.redirect().
- * Si se usa createClient() (basado en cookies() de next/headers), las cookies
- * quedan en el contexto interno de Next.js y NO se propagan al redirect response,
- * dejando al browser sin sesión al llegar al destino.
+ * Lo usan el login con Google por redirección (respaldo si GOOGLE_CLIENT_ID no
+ * está configurado; ver /api/auth/google/token) y los enlaces de recuperación
+ * de contraseña (next=/reset-password).
+ *
+ * IMPORTANTE: Se usa createRouteHandlerClient (no createClient()) para poder
+ * aplicar las cookies de sesión sobre el propio NextResponse.redirect().
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { prisma } from '@/lib/prisma'
+import { createRouteHandlerClient } from '@/lib/supabase/route-client'
+import { findOrRelinkUser } from '@/modules/auth/oauth-user'
 
 function getAppOrigin(request: NextRequest) {
   const host = request.headers.get('host') ?? ''
@@ -44,27 +45,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
-  // Recopilar las cookies que Supabase quiere escribir para aplicarlas
-  // directamente sobre el response de redirect (no via cookies() de next/headers)
-  const pendingCookies: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-          pendingCookies.push(...cookiesToSet)
-        },
-      },
-      cookieOptions: {
-        maxAge: 6 * 60 * 60,
-      },
-    }
-  )
+  // Las cookies de sesión se aplican directamente sobre el response de redirect
+  const { supabase, applyCookies } = createRouteHandlerClient(request)
 
   // Intercambiar el code por una sesión
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
@@ -79,24 +61,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_user`)
   }
 
-  // Verificar si ya existe en Prisma por supabaseId
-  let existingUser = await prisma.user.findUnique({
-    where: { supabaseId: authUser.id },
-  })
-
-  // Si no se encontró por supabaseId pero sí por email, actualizar el supabaseId (reconexión de cuenta)
-  if (!existingUser && authUser.email) {
-    existingUser = await prisma.user.findUnique({
-      where: { email: authUser.email }
-    })
-
-    if (existingUser) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: { supabaseId: authUser.id }
-      })
-    }
-  }
+  // Usuario de Prisma (por supabaseId, o reconectado por email)
+  const existingUser = await findOrRelinkUser(authUser)
 
   const next = searchParams.get('next')
 
@@ -111,10 +77,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Crear el redirect y aplicar las cookies de sesión sobre él
-  const response = NextResponse.redirect(redirectUrl)
-  pendingCookies.forEach(({ name, value, options }) => {
-    response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
-  })
-
-  return response
+  return applyCookies(NextResponse.redirect(redirectUrl))
 }
