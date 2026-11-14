@@ -6,6 +6,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { isSecondFactorPending } from '@/lib/supabase/mfa'
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/types'
 
@@ -26,9 +27,16 @@ export interface AuthUserWithCompany {
 
 /**
  * Obtiene el usuario autenticado con su empresa.
- * Retorna null si no hay sesión válida o el usuario no existe en BD.
+ * Retorna null si no hay sesión válida, si falta el segundo factor o si el
+ * usuario no existe en BD.
+ *
+ * `allowPendingSecondFactor` es solo para el layout del dashboard y sus páginas:
+ * el layout ya redirige a /verify-2fa, y si la página recibiera null mandaría a
+ * /login, que a su vez rebota al dashboard (bucle). Las rutas API nunca lo usan.
  */
-export async function getAuthUser(): Promise<AuthUserWithCompany | null> {
+export async function getAuthUser(
+  { allowPendingSecondFactor = false }: { allowPendingSecondFactor?: boolean } = {}
+): Promise<AuthUserWithCompany | null> {
   try {
     const supabase = await createClient()
     const {
@@ -36,6 +44,7 @@ export async function getAuthUser(): Promise<AuthUserWithCompany | null> {
     } = await supabase.auth.getUser()
 
     if (!authUser) return null
+    if (!allowPendingSecondFactor && (await isSecondFactorPending(supabase, authUser))) return null
 
     const user = await prisma.user.findUnique({
       where: { supabaseId: authUser.id },

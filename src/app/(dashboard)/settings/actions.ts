@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { isSecondFactorPending } from '@/lib/supabase/mfa'
 import { prisma } from '@/lib/prisma'
 
 const updateNameSchema = z.object({
@@ -23,6 +24,10 @@ export async function updateUserNameAction(
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) {
     redirect('/login')
+  }
+  // Las server actions son endpoints: exigen el 2FA igual que las rutas API
+  if (await isSecondFactorPending(supabase, authUser)) {
+    redirect('/verify-2fa')
   }
 
   const dbUser = await prisma.user.findUnique({

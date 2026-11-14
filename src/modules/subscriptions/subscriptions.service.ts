@@ -71,6 +71,37 @@ export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
   },
 }
 
+// ── Pagos con Transbank ───────────────────────────────────────
+
+/** Monto que se cobra por cada plan pagado, en CLP (entero, sin decimales). */
+export const PLAN_CHARGE_CLP: Partial<Record<SubscriptionPlan, number>> = {
+  PRO: 29990,
+  ENTERPRISE: 99990,
+}
+
+/**
+ * sessionId de la transacción Webpay: identifica qué plan y qué empresa se pagan.
+ *
+ * Se lee de la respuesta de `commit` (llamada servidor a servidor con Transbank),
+ * no de la URL de retorno: el navegador del usuario puede alterar la URL, pero no
+ * lo que responde Transbank. Formato "PLAN_companyId" (máx. 61 caracteres).
+ */
+export function encodePaymentSession(plan: SubscriptionPlan, companyId: string): string {
+  return `${plan}_${companyId}`
+}
+
+export function decodePaymentSession(
+  sessionId: unknown
+): { plan: SubscriptionPlan; companyId: string } | null {
+  if (typeof sessionId !== 'string') return null
+  const sep = sessionId.indexOf('_')
+  if (sep <= 0) return null
+  const plan = sessionId.slice(0, sep) as SubscriptionPlan
+  const companyId = sessionId.slice(sep + 1)
+  if (!PLAN_CHARGE_CLP[plan] || !companyId) return null
+  return { plan, companyId }
+}
+
 // ── Funciones del servicio ────────────────────────────────────
 
 /**
@@ -192,11 +223,12 @@ export async function canAddUser(companyId: string): Promise<boolean> {
 
 /**
  * Verifica si una empresa puede añadir más documentos según su plan.
+ * Los documentos eliminados (soft delete) no cuentan para el límite.
  */
 export async function canAddDocument(companyId: string): Promise<boolean> {
   const [sub, docCount] = await Promise.all([
     getCompanySubscription(companyId),
-    prisma.document.count({ where: { companyId } }),
+    prisma.document.count({ where: { companyId, status: { not: 'DELETED' } } }),
   ])
   const maxDocuments = sub?.maxDocuments ?? PLAN_CONFIG.FREE.maxDocuments
   return maxDocuments === -1 || docCount < maxDocuments

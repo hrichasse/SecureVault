@@ -42,7 +42,7 @@ const ROLE_VARIANT: Record<DbRole, 'info' | 'warning' | 'neutral' | 'success'> =
 
 const CREATABLE_BY: Record<DbRole, DbRole[]> = {
   ADMIN: ['ADMIN', 'ADMIN_COMPANY', 'USER', 'NOTARY'],
-  ADMIN_COMPANY: ['USER', 'NOTARY'],
+  ADMIN_COMPANY: ['USER'], // los notarios solo los crea el ADMIN del sistema
   USER: [],
   NOTARY: [],
 }
@@ -240,8 +240,8 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold text-foreground">Gestion de Equipo</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isSystemAdmin
-              ? 'Administra cuentas globales y administradores de empresa.'
-              : 'Administra trabajadores y notarios de tu empresa.'}
+              ? 'Administra cuentas globales, notarios y administradores de empresa.'
+              : 'Administra los trabajadores de tu empresa.'}
           </p>
         </div>
         {creatableRoles.length > 0 && (

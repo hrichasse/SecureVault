@@ -8,7 +8,7 @@ import { RequestsClient } from './RequestsClient'
  * Un USER (trabajador) o NOTARY no debe gestionar solicitudes: se redirige.
  */
 export default async function RequestsPage() {
-  const user = await getAuthUser()
+  const user = await getAuthUser({ allowPendingSecondFactor: true }) // el layout exige el 2FA
   if (!user) redirect('/login')
 
   if (user.role !== 'ADMIN' && user.role !== 'ADMIN_COMPANY') {

@@ -123,7 +123,7 @@ src/
 
 - **Auth**: Registro, login, y gestión de sesiones vía Supabase Auth
 - **Documents**: Carga, almacenamiento y gestión de documentos
-- **Classification**: Clasificación automática con IA (CONFIDENCIAL, RESERVADO, PÚBLICO)
+- **Classification**: Clasificación automática por reglas de palabras clave con pesos (BAJO, MEDIO, ALTO, CRÍTICO), editable a mano
 - **Permissions**: Control de acceso granular por rol y clasificación
 - **Access Requests**: Flujo de solicitud y aprobación de acceso a documentos
 - **Incidents**: Registro y gestión de incidentes de seguridad

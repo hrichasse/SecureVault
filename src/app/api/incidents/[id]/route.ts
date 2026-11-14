@@ -55,16 +55,10 @@ export async function PATCH(
       )
     }
 
-    // assignedToId puede venir null para desasignar (zod lo parsea como null), 
-    // pero prisma lo espera como string | null
-    const updateData = {
-      ...parsed.data,
-      assignedToId: parsed.data.assignedToId === null ? undefined : parsed.data.assignedToId,
-    }
-
+    // assignedToId: string = asignar, null = desasignar, ausente = no cambiar
     const result = await updateIncident(
       params.id,
-      updateData,
+      parsed.data,
       user.id,
       user.companyId
     )

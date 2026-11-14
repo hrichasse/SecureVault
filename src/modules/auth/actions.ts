@@ -25,11 +25,18 @@ const loginSchema = z.object({
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
 })
 
+// El registro público solo crea Administradores de Empresa. ADMIN y NOTARY tienen
+// alcance sobre todas las empresas, así que solo los crea un ADMIN del sistema
+// desde Gestión de Equipo (/api/admin/users).
+const PUBLIC_ROLE_ERROR =
+  'Las cuentas de notario las crea el administrador de SecureVault. Regístrate como Administrador de Empresa.'
+const publicRoleSchema = z.enum(['ADMIN_COMPANY'], { errorMap: () => ({ message: PUBLIC_ROLE_ERROR }) })
+
 const registerSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Ingresa un email válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
-  role: z.enum(['ADMIN_COMPANY', 'NOTARY']),
+  role: publicRoleSchema,
   companyName: z.string().max(200).optional(),
   companyRut: z.string().max(30).optional(),
   companyAddress: z.string().max(300).optional(),
@@ -254,7 +261,7 @@ export async function logoutAction(): Promise<void> {
 // ── completeOAuthRegistrationAction ─────────────────────────────
 
 const oauthCompleteSchema = z.object({
-  role: z.enum(['ADMIN_COMPANY', 'NOTARY']),
+  role: publicRoleSchema,
   companyName: z.string().max(200).optional(),
   companyRut: z.string().max(30).optional(),
   companyAddress: z.string().max(300).optional(),

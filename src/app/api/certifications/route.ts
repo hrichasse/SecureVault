@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAuthUser } from '@/lib/auth-utils'
+import { getAuthUser, verifyAccountPassword } from '@/lib/auth-utils'
 import { getCertifications, certifyDocument, getPendingCertificationDocuments } from '@/modules/certifications/certification.service'
 
 const createSchema = z.object({
@@ -65,6 +65,11 @@ export async function POST(request: Request) {
           { error: 'Debes ingresar cédula notarial y contraseña de firma para legalizar.' },
           { status: 400 }
         )
+      }
+      // La contraseña de firma es la clave de la cuenta del notario: se verifica
+      // antes de estampar el sello, no basta con que venga escrita.
+      if (!(await verifyAccountPassword(user.email, parsed.data.signPassword))) {
+        return NextResponse.json({ error: 'La contraseña de firma no es correcta.' }, { status: 403 })
       }
     }
 

@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Mensajería' }
 
 /** Panel del bus de mensajes (Azure Service Bus). Solo para el ADMIN del sistema. */
 export default async function MessagingPage() {
-  const user = await getAuthUser()
+  const user = await getAuthUser({ allowPendingSecondFactor: true }) // el layout exige el 2FA
   if (!user) redirect('/login')
   if (user.role !== 'ADMIN') redirect('/dashboard')
 
