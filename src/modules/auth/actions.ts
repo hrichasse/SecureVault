@@ -406,7 +406,7 @@ export async function requestPasswordResetAction(
 
     // Solo lo usa la plantilla de correo por defecto de Supabase (pasa por
     // supabase.co → /api/auth/callback). La plantilla recomendada lleva directo a
-    // /api/auth/confirm con {{ .SiteURL }} y no depende de este valor.
+    // /auth/confirm con {{ .SiteURL }} y no depende de este valor.
     const redirectTo = `${origin}/api/auth/callback?next=/reset-password`
 
     const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
