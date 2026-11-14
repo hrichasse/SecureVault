@@ -1,39 +1,97 @@
 /**
  * Embeddings Service — genera embeddings con Gemini y busca por similitud coseno.
- * 
+ *
  * Usado por el sistema RAG del VaultAssistant para buscar contenido
  * relevante dentro de los documentos de la empresa.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import type { UserRole } from '@/types'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!
-const EMBEDDING_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent'
+const EMBEDDING_MODEL = 'models/gemini-embedding-001'
+const API_BASE = `https://generativelanguage.googleapis.com/v1beta/${EMBEDDING_MODEL}`
 
-// ── Generar embedding para un texto ─────────────────────────
+/** Tamaño objetivo de cada fragmento, en caracteres (~250 tokens). */
+export const CHUNK_SIZE = 1000
 
-export async function generateEmbedding(text: string): Promise<number[]> {
-  const res = await fetch(`${EMBEDDING_URL}?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: { parts: [{ text }] },
-    }),
-  })
+/** Hasta cuántos textos se mandan en una sola llamada batchEmbedContents. */
+const EMBED_BATCH = 50
 
-  if (!res.ok) {
-    const error = await res.json()
-    console.error('[Embeddings] Error generating embedding:', error)
-    throw new Error(`Error generando embedding: ${error?.error?.message ?? res.statusText}`)
+/**
+ * Tipo de tarea del embedding: el mismo modelo genera vectores mejor alineados
+ * para búsqueda si se le indica qué es documento y qué es pregunta.
+ */
+export type EmbeddingTask = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'
+
+// ── Llamada a la API (con reintento ante límites de cuota) ──
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function callEmbeddingApi<T>(method: string, body: unknown): Promise<T> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada')
+
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(`${API_BASE}:${method}`, {
+      method: 'POST',
+      // La key va en un header y no en la URL, para que no quede en logs de URLs
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) return (await res.json()) as T
+
+    const error = await res.json().catch(() => null)
+    const message = error?.error?.message ?? res.statusText
+    // 429 = cuota por minuto agotada; 5xx = falla temporal de Google: se reintenta
+    const retryable = res.status === 429 || res.status >= 500
+    if (!retryable || attempt >= 4) {
+      throw new Error(`Error generando embedding (${res.status}): ${message}`)
+    }
+    const waitMs = res.status === 429 ? 15_000 * attempt : 2_000 * attempt
+    console.warn(`[Embeddings] ${res.status} (${message}); reintento ${attempt} en ${waitMs / 1000}s`)
+    await sleep(waitMs)
   }
+}
 
-  const data = await res.json()
-  return data.embedding.values as number[]
+// ── Generar embeddings ──────────────────────────────────────
+
+/** Embedding de un texto (se usa para la pregunta del usuario). */
+export async function generateEmbedding(
+  text: string,
+  taskType: EmbeddingTask = 'RETRIEVAL_QUERY'
+): Promise<number[]> {
+  const data = await callEmbeddingApi<{ embedding: { values: number[] } }>('embedContent', {
+    content: { parts: [{ text }] },
+    taskType,
+  })
+  return data.embedding.values
+}
+
+/** Embeddings de varios textos, en lotes (una llamada a la API por lote). */
+export async function generateEmbeddings(
+  texts: string[],
+  taskType: EmbeddingTask = 'RETRIEVAL_DOCUMENT'
+): Promise<number[][]> {
+  const vectors: number[][] = []
+  for (let i = 0; i < texts.length; i += EMBED_BATCH) {
+    const batch = texts.slice(i, i + EMBED_BATCH)
+    const data = await callEmbeddingApi<{ embeddings: { values: number[] }[] }>('batchEmbedContents', {
+      requests: batch.map((text) => ({ model: EMBEDDING_MODEL, content: { parts: [{ text }] }, taskType })),
+    })
+    if (data.embeddings?.length !== batch.length) {
+      throw new Error(`La API devolvió ${data.embeddings?.length ?? 0} embeddings para ${batch.length} textos`)
+    }
+    vectors.push(...data.embeddings.map((e) => e.values))
+  }
+  return vectors
 }
 
 // ── Similitud coseno entre dos vectores ─────────────────────
 
 function cosineSimilarity(a: number[], b: number[]): number {
+  // Vectores de distinto tamaño (indexados con otra configuración) no se comparan
+  if (!Array.isArray(b) || a.length !== b.length) return 0
   let dot = 0
   let normA = 0
   let normB = 0
@@ -48,38 +106,103 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 // ── Dividir texto en chunks ─────────────────────────────────
 
-export function splitTextIntoChunks(text: string, maxChunkSize = 800): string[] {
-  // Limpiar texto
+/** Corta un texto largo por palabras (último recurso, para oraciones enormes). */
+function splitByWords(text: string, max: number): string[] {
+  const out: string[] = []
+  let current = ''
+  for (const word of text.split(' ')) {
+    if (word.length > max) {
+      if (current) out.push(current)
+      current = ''
+      for (let i = 0; i < word.length; i += max) out.push(word.slice(i, i + max))
+      continue
+    }
+    if (current && current.length + 1 + word.length > max) {
+      out.push(current)
+      current = word
+    } else {
+      current = current ? `${current} ${word}` : word
+    }
+  }
+  if (current) out.push(current)
+  return out
+}
+
+/** Corta un párrafo largo por oraciones, sin pasar de `max` caracteres. */
+function splitBySentences(text: string, max: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+["')\]»]*|[^.!?]+$/g) ?? [text]
+  const out: string[] = []
+  let current = ''
+  for (const raw of sentences) {
+    const sentence = raw.trim()
+    if (!sentence) continue
+    if (sentence.length > max) {
+      if (current) out.push(current)
+      current = ''
+      out.push(...splitByWords(sentence, max))
+      continue
+    }
+    if (current && current.length + 1 + sentence.length > max) {
+      out.push(current)
+      current = sentence
+    } else {
+      current = current ? `${current} ${sentence}` : sentence
+    }
+  }
+  if (current) out.push(current)
+  return out
+}
+
+/**
+ * Divide el texto de un PDF en fragmentos de hasta `maxChunkSize` caracteres.
+ *
+ * Respeta los párrafos (líneas en blanco) y agrupa varios cortos en un mismo
+ * fragmento; un párrafo más largo que el máximo se corta por oraciones. Las
+ * líneas sueltas dentro de un párrafo (el salto de línea de cada renglón del
+ * PDF) se unen con un espacio.
+ */
+export function splitTextIntoChunks(text: string, maxChunkSize = CHUNK_SIZE): string[] {
   const clean = text
-    .replace(/\r\n/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[^\S\n]+/g, ' ') // espacios/tabs repetidos → un espacio (sin tocar los saltos)
+    .replace(/ ?\n ?/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
     .trim()
 
   if (!clean) return []
 
-  // Dividir por párrafos dobles primero
-  const paragraphs = clean.split(/\n\n+/)
+  const pieces: string[] = []
+  for (const paragraph of clean.split(/\n\n+/)) {
+    const flat = paragraph.replace(/\n/g, ' ').trim()
+    if (!flat) continue
+    if (flat.length <= maxChunkSize) pieces.push(flat)
+    else pieces.push(...splitBySentences(flat, maxChunkSize))
+  }
+
   const chunks: string[] = []
   let current = ''
-
-  for (const para of paragraphs) {
-    if ((current + '\n\n' + para).length > maxChunkSize && current) {
-      chunks.push(current.trim())
-      current = para
+  for (const piece of pieces) {
+    if (current && current.length + 2 + piece.length > maxChunkSize) {
+      chunks.push(current)
+      current = piece
     } else {
-      current = current ? current + '\n\n' + para : para
+      current = current ? `${current}\n\n${piece}` : piece
     }
   }
-  if (current.trim()) {
-    chunks.push(current.trim())
-  }
+  if (current) chunks.push(current)
 
-  return chunks.filter(c => c.length > 20) // ignorar chunks muy cortos
+  return chunks.filter((c) => c.length > 20) // ignorar fragmentos muy cortos
 }
 
 // ── Indexar un documento (generar chunks + embeddings) ──────
 
+/**
+ * Indexa el texto de un documento para el RAG. Genera todos los embeddings
+ * antes de tocar la BD y reemplaza los fragmentos anteriores en una sola
+ * transacción: si algo falla, el documento conserva su índice previo.
+ *
+ * @returns cantidad de fragmentos indexados
+ */
 export async function indexDocument(documentId: string, text: string): Promise<number> {
   const chunks = splitTextIntoChunks(text)
 
@@ -88,49 +211,22 @@ export async function indexDocument(documentId: string, text: string): Promise<n
     return 0
   }
 
-  // Borrar chunks anteriores si existen (re-indexación)
-  await prisma.documentChunk.deleteMany({ where: { documentId } })
+  const vectors = await generateEmbeddings(chunks, 'RETRIEVAL_DOCUMENT')
 
-  // Generar embeddings en lotes para no saturar la API
-  const BATCH_SIZE = 5
-  let indexed = 0
+  await prisma.$transaction([
+    prisma.documentChunk.deleteMany({ where: { documentId } }),
+    prisma.documentChunk.createMany({
+      data: chunks.map((content, chunkIndex) => ({
+        documentId,
+        chunkIndex,
+        content,
+        embedding: vectors[chunkIndex] as unknown as Prisma.InputJsonValue,
+      })),
+    }),
+  ])
 
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE)
-    
-    const embeddingPromises = batch.map(async (chunk, batchIdx) => {
-      try {
-        const embedding = await generateEmbedding(chunk)
-        return {
-          documentId,
-          chunkIndex: i + batchIdx,
-          content: chunk,
-          embedding: embedding as unknown as Prisma.InputJsonValue,
-        }
-      } catch (err) {
-        console.error(`[Embeddings] Failed to embed chunk ${i + batchIdx}:`, err)
-        return null
-      }
-    })
-
-    const results = (await Promise.all(embeddingPromises)).filter(Boolean)
-    
-    if (results.length > 0) {
-      await prisma.documentChunk.createMany({
-        // @ts-expect-error — Prisma Json type matches our data
-        data: results,
-      })
-      indexed += results.length
-    }
-
-    // Pausa entre lotes para respetar rate limits
-    if (i + BATCH_SIZE < chunks.length) {
-      await new Promise(r => setTimeout(r, 500))
-    }
-  }
-
-  console.log(`[Embeddings] Indexed ${indexed} chunks for document ${documentId}`)
-  return indexed
+  console.log(`[Embeddings] Indexed ${chunks.length} chunks for document ${documentId}`)
+  return chunks.length
 }
 
 // ── Búsqueda semántica en los chunks de una empresa ─────────
@@ -141,21 +237,51 @@ export interface SemanticSearchResult {
   similarity: number
 }
 
+export interface SearchScope {
+  companyId: string
+  userId: string
+  role: UserRole
+}
+
+/**
+ * Documentos cuyo CONTENIDO puede leer el usuario: el asistente no debe citar
+ * texto de un documento que el usuario no podría descargar.
+ *  - ADMIN, ADMIN_COMPANY y NOTARY: todos los de su empresa (igual que hasActivePermission).
+ *  - USER (trabajador): los que subió él y aquellos con un permiso de lectura vigente
+ *    (solicitud de acceso aprobada y no vencida).
+ */
+export function readableDocumentsWhere({ companyId, userId, role }: SearchScope): Prisma.DocumentWhereInput {
+  const base: Prisma.DocumentWhereInput = { companyId, status: 'ACTIVE' }
+  if (role !== 'USER') return base
+  return {
+    ...base,
+    OR: [
+      { uploadedById: userId },
+      {
+        permissions: {
+          some: {
+            userId,
+            canRead: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+        },
+      },
+    ],
+  }
+}
+
 export async function semanticSearch(
   query: string,
-  companyId: string,
+  scope: SearchScope,
   topK = 5
 ): Promise<SemanticSearchResult[]> {
   // 1. Generar embedding de la consulta
-  const queryEmbedding = await generateEmbedding(query)
+  const queryEmbedding = await generateEmbedding(query, 'RETRIEVAL_QUERY')
 
-  // 2. Obtener todos los chunks de documentos activos de la empresa
+  // 2. Obtener los chunks de los documentos que el usuario puede leer
   const chunks = await prisma.documentChunk.findMany({
     where: {
-      document: {
-        companyId,
-        status: 'ACTIVE',
-      },
+      document: readableDocumentsWhere(scope),
     },
     select: {
       content: true,
@@ -167,18 +293,13 @@ export async function semanticSearch(
   if (chunks.length === 0) return []
 
   // 3. Calcular similitud coseno con cada chunk
-  const scored = chunks
-    .map(chunk => ({
+  return chunks
+    .map((chunk) => ({
       content: chunk.content,
       documentName: chunk.document.name,
       similarity: cosineSimilarity(queryEmbedding, chunk.embedding as number[]),
     }))
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, topK)
-    .filter(r => r.similarity > 0.3) // umbral mínimo de relevancia
-
-  return scored
+    .filter((r) => r.similarity > 0.3) // umbral mínimo de relevancia
 }
-
-// Necesario para el tipo Prisma.InputJsonValue
-import { Prisma } from '@prisma/client'

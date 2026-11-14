@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Bot, X, Send, Minimize2, Maximize2, Sparkles, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePathname } from 'next/navigation'
+import { renderMarkdown } from '@/lib/chat-markdown'
 
 interface Message {
   id: string
@@ -33,15 +34,7 @@ const PAGE_CONTEXT: Record<string, string> = {
 
 // ─── Markdown renderer ligero ─────────────────────────────────────────────────
 
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(?<!\n)\*(?!\*)(.*?)\*(?!\*)/g, '<em>$1</em>')
-    .replace(/^[\*\-] (.+)$/gm, '<li>$1</li>')
-    .replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul class="list-disc list-inside space-y-1 my-1">${m}</ul>`)
-    .replace(/\n{2,}/g, '</p><p class="mt-2">')
-    .replace(/\n/g, '<br/>')
-}
+// (renderMarkdown vive en lib/chat-markdown.ts: escapa el HTML antes de formatear)
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 
