@@ -17,22 +17,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/route-client'
 import { findOrRelinkUser } from '@/modules/auth/oauth-user'
-
-function getAppOrigin(request: NextRequest) {
-  const host = request.headers.get('host') ?? ''
-
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
-    return `http://${host}`
-  }
-
-  // En Azure el host puede llegar como contenedor interno (xxxxx:8080).
-  // Para cualquier entorno no-local usamos siempre el dominio público.
-  return 'https://securevault-ai.azurewebsites.net'
-}
+import { getAppOrigin, safeNextPath } from '@/lib/app-origin'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const origin = getAppOrigin(request)
+  const origin = getAppOrigin(request.headers.get('host'))
   const code = searchParams.get('code')
   const errorParam = searchParams.get('error')
 
@@ -70,7 +59,7 @@ export async function GET(request: NextRequest) {
     ? `${origin}/dashboard`
     : `${origin}/register/complete`
 
-  if (next && next.startsWith('/') && !next.startsWith('//')) {
+  if (next && safeNextPath(next, '') === next) {
     redirectUrl = (existingUser || next === '/reset-password')
       ? `${origin}${next}`
       : `${origin}/register/complete`

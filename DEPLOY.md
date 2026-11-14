@@ -121,6 +121,24 @@ Supabase bloquea requests de dominios no autorizados. Debes agregar tu URL de Az
 >
 > 💡 Si después cambias a un dominio propio como `https://www.securevault.com`, tendrás que volver aquí y reemplazar la URL de Azure por tu dominio final, además de agregar sus redirects correspondientes.
 
+#### Plantilla del correo de recuperación de contraseña
+
+Google Safe Browsing marcó como peligroso el dominio `<proyecto>.supabase.co`, y el
+enlace por defecto del correo pasa por ahí. Para que el navegador vaya directo a la app:
+
+1. **Authentication** → **Emails** → plantilla **Reset Password**
+2. Reemplazar el cuerpo por:
+
+```html
+<h2>Restablecer contraseña</h2>
+<p>Recibimos una solicitud para cambiar la contraseña de tu cuenta de SecureVault.</p>
+<p><a href="{{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Crear una nueva contraseña</a></p>
+<p>Si no la pediste, puedes ignorar este correo.</p>
+```
+
+3. **Save**. La ruta `/api/auth/confirm` debe estar desplegada antes de guardar el cambio,
+   y **Site URL** (paso anterior) debe ser el dominio público de la app.
+
 ---
 
 ### AZ.7 Verificar que todo funciona

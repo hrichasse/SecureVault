@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { logEvent } from '@/modules/audit/audit.service'
 import { PLAN_CONFIG } from '@/modules/subscriptions/subscriptions.service'
 import { headers } from 'next/headers'
+import { getAppOrigin } from '@/lib/app-origin'
 
 // ── Schemas de validación ─────────────────────────────────────
 
@@ -399,12 +400,13 @@ export async function requestPasswordResetAction(
   try {
     const supabase = await createClient()
     
-    // Obtener origen dinámico para callback
+    // Origen público (en Azure el Host puede ser el contenedor interno)
     const reqHeaders = await headers()
-    const host = reqHeaders.get('host') ?? 'localhost:3000'
-    const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
-    const origin = `${protocol}://${host}`
+    const origin = getAppOrigin(reqHeaders.get('host'))
 
+    // Solo lo usa la plantilla de correo por defecto de Supabase (pasa por
+    // supabase.co → /api/auth/callback). La plantilla recomendada lleva directo a
+    // /api/auth/confirm con {{ .SiteURL }} y no depende de este valor.
     const redirectTo = `${origin}/api/auth/callback?next=/reset-password`
 
     const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
