@@ -3,6 +3,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { publishEvent } from '@/lib/messaging/publisher'
 import type { IncidentStatus, IncidentPriority, IncidentType, ConfidentialityLevel } from '@/types'
 
 // ── calcPriority ───────────────────────────────────────────
@@ -44,7 +45,7 @@ export async function createIncident(
     finalPriority = getAutomaticPriority(document.confidentialityLevel)
   }
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const incident = await tx.incident.create({
       data: {
         title: data.title,
@@ -75,6 +76,17 @@ export async function createIncident(
 
     return incident
   })
+
+  // Se publica con la transacción ya confirmada: los suscriptores avisan a los administradores.
+  await publishEvent('incident.created', {
+    incidentId: created.id,
+    companyId,
+    title: created.title,
+    priority: created.priority,
+    createdById,
+  })
+
+  return created
 }
 
 // ── getIncidents ───────────────────────────────────────────
@@ -122,7 +134,8 @@ export async function getIncidentById(id: string, companyId: string) {
 
 export interface UpdateIncidentInput {
   status?: IncidentStatus
-  assignedToId?: string
+  /** string = asignar, null = desasignar, undefined = no cambiar */
+  assignedToId?: string | null
   resolution?: string
 }
 
@@ -137,21 +150,33 @@ export async function updateIncident(
   })
   if (!existing) throw new Error('Incidente no encontrado')
 
-  // Manejo automático de fechas de resolución
+  // Solo se puede asignar a alguien de la misma empresa
+  if (data.assignedToId) {
+    const assignee = await prisma.user.findFirst({
+      where: { id: data.assignedToId, companyId },
+      select: { id: true },
+    })
+    if (!assignee) throw new Error('El usuario asignado no pertenece a la empresa')
+  }
+
+  // Manejo automático de fechas de resolución (solo si cambia el estado:
+  // reasignar sin tocar el estado no debe borrar las fechas)
   let resolvedAt = existing.resolvedAt
   let closedAt = existing.closedAt
 
-  if (data.status === 'RESOLVED' && existing.status !== 'RESOLVED') {
-    resolvedAt = new Date()
-  } else if (data.status !== 'RESOLVED' && data.status !== 'CLOSED') {
-    resolvedAt = null // si lo reabren
-  }
+  if (data.status) {
+    if (data.status === 'RESOLVED' && existing.status !== 'RESOLVED') {
+      resolvedAt = new Date()
+    } else if (data.status !== 'RESOLVED' && data.status !== 'CLOSED') {
+      resolvedAt = null // si lo reabren
+    }
 
-  if (data.status === 'CLOSED' && existing.status !== 'CLOSED') {
-    closedAt = new Date()
-    if (!resolvedAt) resolvedAt = new Date() // Si pasa directo a closed, también resolvió
-  } else if (data.status !== 'CLOSED') {
-    closedAt = null // si lo reabren
+    if (data.status === 'CLOSED' && existing.status !== 'CLOSED') {
+      closedAt = new Date()
+      if (!resolvedAt) resolvedAt = new Date() // Si pasa directo a closed, también resolvió
+    } else if (data.status !== 'CLOSED') {
+      closedAt = null // si lo reabren
+    }
   }
 
   return prisma.$transaction(async (tx) => {

@@ -3,15 +3,21 @@
  *
  * Callback de Transbank después del pago.
  * Transbank redirige aquí con token_ws (por GET o POST).
- * plan y companyId vienen como query params en la returnUrl.
+ *
+ * Plan, empresa y monto se toman de la respuesta de `commit` (servidor a
+ * servidor), nunca de la URL: el navegador puede alterarla para activar otro
+ * plan u otra empresa con un mismo pago.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { WebpayPlus, Options, Environment, IntegrationCommerceCodes, IntegrationApiKeys } from 'transbank-sdk'
-import { upgradeSubscription } from '@/modules/subscriptions/subscriptions.service'
-import type { SubscriptionPlan } from '@prisma/client'
+import {
+  upgradeSubscription,
+  decodePaymentSession,
+  PLAN_CHARGE_CLP,
+} from '@/modules/subscriptions/subscriptions.service'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -33,10 +39,6 @@ function getWebpayTx() {
 
 async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url)
-
-  // plan y companyId vienen como query params en la returnUrl
-  const plan = searchParams.get('plan') as SubscriptionPlan | null
-  const companyId = searchParams.get('companyId')
 
   // token_ws puede llegar por GET (query) o por POST (form body)
   let tokenWs: string | null = searchParams.get('token_ws')
@@ -60,8 +62,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(`${BASE_URL}/settings/subscription?cancelled=true`)
   }
 
-  // Validar que tenemos todos los datos necesarios
-  if (!tokenWs || !plan || !companyId) {
+  if (!tokenWs) {
     return NextResponse.redirect(`${BASE_URL}/settings/subscription?error=missing_params`)
   }
 
@@ -69,19 +70,28 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     const tx = getWebpayTx()
     const result: any = await tx.commit(tokenWs)
 
-
-
-    // Transbank SDK puede devolver snake_case o camelCase dependiendo de la versión
+    // El SDK devuelve el JSON de la API tal cual (snake_case); se acepta camelCase por compatibilidad
     const respCode = result.response_code ?? result.responseCode
     const respStatus = result.status
     const respBuyOrder = result.buy_order ?? result.buyOrder
-    const respAmount = result.amount
+    const respAmount = Number(result.amount)
+    const session = decodePaymentSession(result.session_id ?? result.sessionId)
 
     // responseCode 0 = pago autorizado
     if (respCode === 0 && respStatus === 'AUTHORIZED') {
-      await upgradeSubscription(companyId, plan, tokenWs, respBuyOrder)
+      // El monto cobrado debe ser exactamente el precio del plan que dice el sessionId
+      if (!session || respAmount !== PLAN_CHARGE_CLP[session.plan]) {
+        console.error('[Transbank] Pago autorizado que no corresponde a ningún plan:', {
+          buyOrder: respBuyOrder,
+          amount: respAmount,
+          sessionId: result.session_id ?? result.sessionId,
+        })
+        return NextResponse.redirect(`${BASE_URL}/settings/subscription?error=payment_mismatch`)
+      }
+
+      await upgradeSubscription(session.companyId, session.plan, tokenWs, respBuyOrder)
       return NextResponse.redirect(
-        `${BASE_URL}/settings/subscription?success=true&plan=${plan}&amount=${respAmount}`
+        `${BASE_URL}/settings/subscription?success=true&plan=${session.plan}&amount=${respAmount}`
       )
     } else {
       console.error('[Transbank] Payment rejected:', { respCode, respStatus, result })

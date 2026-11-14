@@ -1,0 +1,39 @@
+# Emulador local de Azure Service Bus (desarrollo y pruebas).
+# Basado en la guía oficial de Microsoft. Requiere el archivo .env de esta carpeta
+# (copiar .env.example) y el Config.json generado con `npm run mq:config`.
+name: securevault-servicebus
+services:
+  emulator:
+    container_name: "sv-servicebus-emulator"
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    volumes:
+      - "./Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
+    ports:
+      - "5672:5672" # AMQP
+      - "5300:5300" # health check y API de administración
+    environment:
+      SQL_SERVER: mssql
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      ACCEPT_EULA: ${ACCEPT_EULA}
+      SQL_WAIT_INTERVAL: 30
+    depends_on:
+      - mssql
+    networks:
+      sb-emulator:
+        aliases:
+          - "sb-emulator"
+  mssql:
+    container_name: "sv-servicebus-mssql"
+    image: "mcr.microsoft.com/mssql/server:2022-latest"
+    # SQL Server solo publica imagen x86; en Apple Silicon corre bajo Rosetta.
+    platform: linux/amd64
+    networks:
+      sb-emulator:
+        aliases:
+          - "mssql"
+    environment:
+      ACCEPT_EULA: ${ACCEPT_EULA}
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+
+networks:
+  sb-emulator:

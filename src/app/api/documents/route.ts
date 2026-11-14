@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuthUser } from '@/lib/auth-utils'
 import { uploadDocument, getDocuments } from '@/modules/documents/document.service'
+import { canAddDocument } from '@/modules/subscriptions/subscriptions.service'
 import type { ConfidentialityLevel, DocumentStatus } from '@/types'
 
 // ── GET /api/documents ─────────────────────────────────────
@@ -49,6 +50,18 @@ export async function POST(request: Request) {
     const user = await getAuthUser()
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Límite del plan: aplica a las empresas clientes (no a la empresa base del
+    // sistema, donde están ADMIN y NOTARY)
+    if (
+      (user.role === 'ADMIN_COMPANY' || user.role === 'USER') &&
+      !(await canAddDocument(user.companyId))
+    ) {
+      return NextResponse.json(
+        { error: 'Tu empresa alcanzó el límite de documentos de su plan. Mejora el plan para subir más.' },
+        { status: 403 }
+      )
     }
 
     // Parsear multipart/form-data

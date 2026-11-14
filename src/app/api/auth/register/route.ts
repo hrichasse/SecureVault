@@ -7,7 +7,10 @@ const registerSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8),
-  role: z.enum(['ADMIN', 'ADMIN_COMPANY', 'NOTARY']),
+  // Solo Administradores de Empresa se auto-registran. ADMIN y NOTARY tienen alcance
+  // sobre todas las empresas: solo los crea un ADMIN desde /api/admin/users.
+  // Igual que en registerAction (modules/auth/actions.ts).
+  role: z.enum(['ADMIN_COMPANY']),
   companyName: z.string().max(200).optional(),
   companyRut: z.string().max(30).optional(),
   companyAddress: z.string().max(300).optional(),

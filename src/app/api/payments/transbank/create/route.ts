@@ -9,15 +9,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { WebpayPlus, Options, Environment, IntegrationCommerceCodes, IntegrationApiKeys } from 'transbank-sdk'
-import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { getAuthUser } from '@/lib/auth-utils'
+import { PLAN_CHARGE_CLP, encodePaymentSession } from '@/modules/subscriptions/subscriptions.service'
 import type { SubscriptionPlan } from '@prisma/client'
-
-// Precios en pesos CLP (entero, sin decimales)
-const PLAN_PRICES: Record<string, number> = {
-  PRO: 29990,
-  ENTERPRISE: 99990,
-}
 
 const PLAN_LABELS: Record<string, string> = {
   PRO: 'Plan PRO - SecureVault',
@@ -42,35 +36,25 @@ function getWebpayTx() {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Autenticar usuario
-    const supabase = await createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) {
+    // 1. Autenticar usuario (incluye el segundo factor si lo tiene activo)
+    const dbUser = await getAuthUser()
+    if (!dbUser) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
     // 2. Obtener datos de la solicitud
     const { plan } = await request.json() as { plan: SubscriptionPlan }
-    if (!plan || !['PRO', 'ENTERPRISE'].includes(plan)) {
+    const amount = plan ? PLAN_CHARGE_CLP[plan] : undefined
+    if (!amount) {
       return NextResponse.json({ error: 'Plan inválido' }, { status: 400 })
     }
 
-    // 3. Obtener empresa del usuario
-    const dbUser = await prisma.user.findUnique({
-      where: { supabaseId: authUser.id },
-      include: { company: true },
-    })
-    if (!dbUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
-    }
-
-    // 4. Crear la transacción
+    // 3. Crear la transacción. Plan y empresa viajan en el sessionId, que el
+    //    callback lee de la respuesta de Transbank (no de la URL de retorno).
     const tx = getWebpayTx()
     const buyOrder = `SV-${dbUser.companyId.slice(0, 8)}-${Date.now()}`
-    const sessionId = `sv-${dbUser.id.slice(0, 8)}`
-    const amount = PLAN_PRICES[plan]
-    // plan y companyId van como query params en la returnUrl (Transbank los preserva)
-    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/transbank/callback?plan=${plan}&companyId=${dbUser.companyId}`
+    const sessionId = encodePaymentSession(plan, dbUser.companyId)
+    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/transbank/callback`
 
     const response: any = await tx.create(buyOrder, sessionId, amount, returnUrl)
 

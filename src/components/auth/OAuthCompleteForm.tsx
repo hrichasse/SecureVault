@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 export function OAuthCompleteForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [selectedRole, setSelectedRole] = useState<'ADMIN_COMPANY' | 'NOTARY'>('ADMIN_COMPANY')
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -49,23 +48,14 @@ export function OAuthCompleteForm() {
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor="reg-role">Tipo de cuenta</Label>
-        <select
-          id="reg-role"
-          name="role"
-          className="input"
-          value={selectedRole}
-          onChange={(e) => setSelectedRole(e.target.value as 'ADMIN_COMPANY' | 'NOTARY')}
-          disabled={loading}
-        >
-          <option value="ADMIN_COMPANY">Administrador de Empresa</option>
-          <option value="NOTARY">Notario / Certificador</option>
-        </select>
-      </div>
+      {/* El registro público crea siempre un Administrador de Empresa.
+          Las cuentas de notario las crea el ADMIN del sistema desde Gestión de Equipo. */}
+      <input type="hidden" name="role" value="ADMIN_COMPANY" />
+      <p className="text-xs text-muted-foreground">
+        Completa los datos de tu empresa. ¿Eres notario? Pide tu cuenta al equipo de SecureVault.
+      </p>
 
-      {selectedRole === 'ADMIN_COMPANY' && (
-        <>
+      <>
           <div className="space-y-2">
             <Label htmlFor="reg-company">Nombre de la empresa</Label>
             <div className="relative">
@@ -88,8 +78,7 @@ export function OAuthCompleteForm() {
             <Label htmlFor="reg-company-business">Giro</Label>
             <Input id="reg-company-business" name="companyBusinessLine" type="text" required placeholder="Logística y transporte" className="input" disabled={loading} />
           </div>
-        </>
-      )}
+      </>
 
       <div className="flex items-start gap-2.5">
         <input

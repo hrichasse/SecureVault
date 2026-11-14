@@ -5,6 +5,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    // Habilita src/instrumentation.ts, donde arrancan los consumidores del bus de mensajes.
+    instrumentationHook: true,
   },
   images: {
     remotePatterns: [

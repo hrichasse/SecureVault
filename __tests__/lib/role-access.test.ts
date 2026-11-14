@@ -58,10 +58,11 @@ describe('role-access utilities', () => {
       expect(hasAccess('notario', '/documents')).toBe(true)
     })
 
-    it('should restrict requests access to admin, admin_empresa, and cliente', () => {
+    it('should restrict requests access to admin and admin_empresa', () => {
       expect(hasAccess('admin', '/requests')).toBe(true)
       expect(hasAccess('admin_empresa', '/requests')).toBe(true)
-      expect(hasAccess('cliente', '/requests')).toBe(true)
+      // El panel de solicitudes es de revisión/aprobación: el trabajador no lo ve.
+      expect(hasAccess('cliente', '/requests')).toBe(false)
       expect(hasAccess('notario', '/requests')).toBe(false)
     })
 

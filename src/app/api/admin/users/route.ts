@@ -4,11 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/modules/auth/auth.service'
 import { logEvent } from '@/modules/audit/audit.service'
+import { canAddUser } from '@/modules/subscriptions/subscriptions.service'
 import type { UserRole } from '@/types'
 
 const CREATABLE_ROLES: Record<UserRole, UserRole[]> = {
   ADMIN: ['ADMIN', 'ADMIN_COMPANY', 'USER', 'NOTARY'],
-  ADMIN_COMPANY: ['USER', 'NOTARY'],
+  // Un notario ve y certifica documentos de todas las empresas: solo lo crea
+  // (o asigna, vía PATCH) el ADMIN del sistema, nunca un admin de empresa.
+  ADMIN_COMPANY: ['USER'],
   USER: [],
   NOTARY: [],
 }
@@ -108,6 +111,15 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
+    }
+
+    // Límite del plan: un admin de empresa agrega trabajadores a su propia empresa.
+    // Se valida antes de crear la cuenta en Supabase para no dejarla huérfana.
+    if (authUser.role === 'ADMIN_COMPANY' && role === 'USER' && !(await canAddUser(authUser.companyId))) {
+      return NextResponse.json(
+        { error: 'Tu empresa alcanzó el límite de usuarios de su plan. Mejora el plan para agregar más.' },
+        { status: 403 }
+      )
     }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({

@@ -16,9 +16,16 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "mq:config": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/servicebus-emulator-config.ts",
+    "mq:provision": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/servicebus-provision.ts",
+    "mq:up": "npm run mq:config && docker compose -f infra/servicebus/docker-compose.yaml up -d --force-recreate emulator",
+    "mq:down": "docker compose -f infra/servicebus/docker-compose.yaml down",
+    "mq:logs": "docker logs -f sv-servicebus-emulator",
+    "test:mq": "MQ_E2E=1 SERVICEBUS_ENTITY_PREFIX=test- MESSAGING_RETRY_BASE_MS=50 SERVICEBUS_CONNECTION_STRING='Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;' jest --runInBand --forceExit __tests__/integration"
   },
   "dependencies": {
+    "@azure/service-bus": "^7.9.5",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.2",
@@ -47,6 +54,7 @@
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
     "jose": "^5.10.0",
+    "long": "^5.3.2",
     "lucide-react": "^0.462.0",
     "next": "14.2.29",
     "next-themes": "^0.4.6",

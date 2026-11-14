@@ -2,7 +2,8 @@
 
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
-import { Bell, Search, Shield, LogOut, Settings, User, ChevronDown, Moon, Sun } from 'lucide-react'
+import { NotificationBell } from './NotificationBell'
+import { Search, Shield, LogOut, Settings, User, ChevronDown, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -79,10 +80,7 @@ function DashboardContent({ user, children }: { user: DashboardUser; children: R
               </div>
 
               {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative h-8 w-8">
-                <Bell className="h-4 w-4" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive" />
-              </Button>
+              <NotificationBell />
 
               {/* User menu */}
               <DropdownMenu>
