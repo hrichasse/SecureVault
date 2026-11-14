@@ -58,6 +58,7 @@ Agregar estas variables una por una (Name = el nombre, Value = el valor real de 
 | `JWT_SECRET` | El mismo valor que tienes en tu `.env.local` |
 | `NEXT_PUBLIC_APP_URL` | `https://securevault-ai.azurewebsites.net` |
 | `NODE_ENV` | `production` |
+| `GOOGLE_CLIENT_ID` | Client ID web de Google (`....apps.googleusercontent.com`), el mismo del proveedor Google en Supabase. Habilita el login con Google sin pasar por `*.supabase.co` |
 
 4. Al terminar de agregar todas, click en **Save** arriba. Azure te preguntará si quieres reiniciar — click **Continue**.
 

@@ -74,7 +74,8 @@ export default async function LoginPage() {
             <p className="text-muted-foreground text-sm">Accede a tu plataforma de gestión documental segura</p>
           </div>
 
-          <LoginForm />
+          {/* Se lee en cada request: basta definir GOOGLE_CLIENT_ID en Azure, sin recompilar */}
+          <LoginForm googleClientId={process.env.GOOGLE_CLIENT_ID} />
 
           <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
             <Lock className="h-3 w-3" />

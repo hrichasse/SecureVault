@@ -50,7 +50,7 @@ export default async function RegisterPage() {
           </div>
           <h1 className="text-4xl font-bold text-primary-foreground">Crea tu acceso seguro</h1>
           <p className="text-lg text-primary-foreground/80 max-w-md">
-            Registra Administrador del Sistema, Administrador de Empresa o Notario y comienza a operar en SecureVault
+            Registra tu empresa y comienza a operar en SecureVault
           </p>
         </div>
       </div>
@@ -68,16 +68,17 @@ export default async function RegisterPage() {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-foreground">Registro de acceso</h2>
             <p className="text-muted-foreground text-sm">
-              Selecciona tu tipo de cuenta. Si eliges Administrador de Empresa, deberás completar los datos legales de la empresa.
+              Crea la cuenta del administrador de tu empresa y completa sus datos legales.
             </p>
           </div>
 
           <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3 border border-border">
             <Shield className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-primary" />
-            <span>Los trabajadores (USER) son creados por el Administrador de Empresa desde Gestión de Equipo.</span>
+            <span>Los trabajadores los crea el Administrador de Empresa desde Gestión de Equipo, y los notarios el equipo de SecureVault.</span>
           </div>
 
-          <RegisterForm />
+          {/* Se lee en cada request: basta definir GOOGLE_CLIENT_ID en Azure, sin recompilar */}
+          <RegisterForm googleClientId={process.env.GOOGLE_CLIENT_ID} />
 
           <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
             <Lock className="h-3 w-3" />
