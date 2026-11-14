@@ -1,25 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getAuthUser } from '@/modules/auth/auth.service'
 import { prisma } from '@/lib/prisma'
 import { semanticSearch } from '@/lib/embeddings'
+import { checkRateLimit } from '@/lib/rate-limit'
+import type { UserRole } from '@/types'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+/**
+ * Modelo del chat. Se puede cambiar sin tocar código con GEMINI_CHAT_MODEL
+ * (p. ej. en Azure → Configuration), usando un nombre que aparezca en AI Studio.
+ */
+const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash'
+
+// Mensajes que manda el navegador: se validan porque el historial lo arma el cliente
+const bodySchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().min(1).max(4000),
+      })
+    )
+    .min(1)
+    .max(30),
+})
+
+// Cada usuario puede hacer hasta 20 preguntas por minuto (cada una consume cuota de Gemini)
+const RATE_LIMIT = { limit: 20, windowMs: 60_000 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
+type ChatMessage = z.infer<typeof bodySchema>['messages'][number]
 
 interface UserContext {
   userId: string
   companyId: string
   companyName: string
   userName: string
-  role: string
+  role: UserRole
+}
+
+/**
+ * Configuración de generación. Los modelos 2.5 "piensan" antes de responder y
+ * esos tokens se descuentan de maxOutputTokens: con un tope bajo la respuesta
+ * podía quedar vacía (y se usaba el fallback sin avisar). En Flash se apaga el
+ * razonamiento (thinkingBudget 0), que además lo hace más rápido.
+ */
+function buildGenerationConfig(model: string) {
+  return {
+    temperature: 0.6,
+    topP: 0.9,
+    maxOutputTokens: 800,
+    ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+  }
 }
 
 // ─── Contexto de datos desde la BD ────────────────────────────────────────────
@@ -190,7 +223,7 @@ NAVEGACIÓN:
 - Documentos: /documents (subir, ver, gestionar)
 - Solicitudes: /requests (pedir o aprobar acceso)
 - Incidentes: /incidents (reportar y gestionar)
-- Certificaciones: /certifications (solo Notarios)
+- Certificaciones: /certifications (Notarios y administradores)
 - Auditoría: /audit (historial de acciones)
 - Administración: /admin (solo Admins)
 - Configuración: /settings
@@ -253,7 +286,7 @@ function buildSmartFallback(message: string, dataCtx: string, userCtx: UserConte
   }
 
   if (lower.includes('subir') || lower.includes('cargar') || lower.includes('upload')) {
-    return `📤 Para subir un documento: ve a **Documentos** (/documents) y haz clic en el botón **"Subir documento"**. El sistema lo clasificará automáticamente con IA (niveles: BAJO, MEDIO, ALTO, CRÍTICO).`
+    return `📤 Para subir un documento: ve a **Documentos** (/documents) y haz clic en el botón **"Subir documento"**. El sistema lo clasificará automáticamente según su nombre y descripción (niveles: BAJO, MEDIO, ALTO, CRÍTICO), y puedes ajustar el nivel a mano.`
   }
 
   if (lower.includes('solicitar') || lower.includes('pedir') || lower.includes('request')) {
@@ -279,12 +312,8 @@ function buildSmartFallback(message: string, dataCtx: string, userCtx: UserConte
 
 export async function POST(req: NextRequest) {
   try {
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'API key no configurada. Agrega GEMINI_API_KEY en .env.local' },
-        { status: 500 }
-      )
-    }
+    const apiKey = process.env.GEMINI_API_KEY
+    const model = process.env.GEMINI_CHAT_MODEL || DEFAULT_CHAT_MODEL
 
     // 1. Autenticar usuario
     const authUser = await getAuthUser()
@@ -292,6 +321,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Debes iniciar sesión para usar el asistente.' },
         { status: 401 }
+      )
+    }
+
+    const rate = checkRateLimit(`chat:${authUser.id}`, RATE_LIMIT.limit, RATE_LIMIT.windowMs)
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: `Estás enviando muchas preguntas seguidas. Intenta de nuevo en ${rate.retryAfterSec} s.` },
+        { status: 429, headers: { 'Retry-After': String(rate.retryAfterSec) } }
       )
     }
 
@@ -303,11 +340,12 @@ export async function POST(req: NextRequest) {
       role: authUser.role,
     }
 
-    // 2. Leer mensajes del cuerpo
-    const { messages } = (await req.json()) as { messages: ChatMessage[] }
-    if (!messages?.length) {
+    // 2. Leer y validar mensajes del cuerpo
+    const parsed = bodySchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
       return NextResponse.json({ error: 'Mensajes inválidos' }, { status: 400 })
     }
+    const messages: ChatMessage[] = parsed.data.messages
 
     const lastUserMessage = messages[messages.length - 1]?.content ?? ''
 
@@ -327,10 +365,16 @@ export async function POST(req: NextRequest) {
       ? `${dataCtx}\n\n${searchCtx}`
       : dataCtx
 
-    // 4b. Búsqueda semántica RAG en los documentos indexados
+    // 4b. Búsqueda semántica RAG, solo en los documentos que el usuario puede leer
     let ragContext = ''
     try {
-      const ragResults = await semanticSearch(lastUserMessage, userCtx.companyId, 4)
+      const ragResults = apiKey
+        ? await semanticSearch(
+            lastUserMessage,
+            { companyId: userCtx.companyId, userId: userCtx.userId, role: userCtx.role },
+            4
+          )
+        : []
       if (ragResults.length > 0) {
         ragContext = '\n\nCONTENIDO RELEVANTE DE DOCUMENTOS (RAG):\n' +
           ragResults.map(r => `[Doc: "${r.documentName}" | Relevancia: ${(r.similarity * 100).toFixed(0)}%]\n${r.content}`).join('\n---\n')
@@ -349,39 +393,57 @@ export async function POST(req: NextRequest) {
 
     // 5. Llamar a Gemini con fallback inteligente
     let responseText = ''
+    let source: 'gemini' | 'fallback' = 'fallback'
 
-    try {
-      const body = {
-        system_instruction: {
-          parts: [{ text: buildSystemPrompt(userCtx, completeDataCtx) }],
-        },
-        contents: geminiContents,
-        generationConfig: {
-          temperature: 0.6,
-          maxOutputTokens: 400,
-          topP: 0.9,
-        },
-      }
+    if (!apiKey) {
+      console.warn('[Chat] GEMINI_API_KEY no configurada: respuesta por reglas (fallback)')
+      responseText = buildSmartFallback(lastUserMessage, fullDataCtx, userCtx)
+    } else {
+      try {
+        const body = {
+          system_instruction: {
+            parts: [{ text: buildSystemPrompt(userCtx, completeDataCtx) }],
+          },
+          contents: geminiContents,
+          generationConfig: buildGenerationConfig(model),
+        }
 
-      const geminiRes = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          {
+            method: 'POST',
+            // La key va en un header y no en la URL, para que no quede en logs de URLs
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify(body),
+          }
+        )
 
-      const data = await geminiRes.json()
+        const data = await geminiRes.json().catch(() => null)
+        const candidate = data?.candidates?.[0]
+        const text = (candidate?.content?.parts ?? [])
+          .map((p: { text?: string; thought?: boolean }) => (p.thought ? '' : p.text ?? ''))
+          .join('')
+          .trim()
 
-      if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        responseText = data.candidates[0].content.parts[0].text
-      } else {
-        console.warn('Gemini unavailable, using smart fallback:', data?.error?.message)
+        if (geminiRes.ok && text) {
+          responseText = text
+          source = 'gemini'
+        } else {
+          console.warn('[Chat] Gemini sin respuesta, se usa el fallback:', {
+            model,
+            status: geminiRes.status,
+            error: data?.error?.message,
+            finishReason: candidate?.finishReason,
+          })
+          responseText = buildSmartFallback(lastUserMessage, fullDataCtx, userCtx)
+        }
+      } catch (err) {
+        console.warn('[Chat] Error llamando a Gemini, se usa el fallback:', err)
         responseText = buildSmartFallback(lastUserMessage, fullDataCtx, userCtx)
       }
-    } catch {
-      responseText = buildSmartFallback(lastUserMessage, fullDataCtx, userCtx)
     }
 
-    return NextResponse.json({ message: responseText })
+    return NextResponse.json({ message: responseText, source })
   } catch (error) {
     console.error('Chat route error:', error)
     return NextResponse.json(

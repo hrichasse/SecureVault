@@ -1,87 +1,73 @@
 import { NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { indexDocument } from '@/lib/embeddings'
-
-const BUCKET = 'documents'
+import { indexDocumentFromStorage } from '@/modules/documents/indexing.service'
 
 /**
  * POST /api/admin/rag/index-all
- * 
- * Indexa todos los documentos activos de la empresa que aún no tienen chunks.
- * Solo accesible por ADMIN o ADMIN_COMPANY.
+ *
+ * Indexa para el RAG los documentos activos que aún no tienen fragmentos.
+ * Con body { "reindex": true } vuelve a indexar TODOS (p. ej. después de
+ * cambiar cómo se divide el texto o el modelo de embeddings).
+ *
+ * - ADMIN_COMPANY: documentos de su empresa.
+ * - ADMIN (sistema): documentos de todas las empresas.
+ *
+ * Usa el mismo camino que el indexador del bus de mensajes
+ * (indexDocumentFromStorage), así el resultado es idéntico.
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const user = await getAuthUser()
     if (!user || !['ADMIN', 'ADMIN_COMPANY'].includes(user.role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    // Buscar documentos sin chunks
+    const body = await request.json().catch(() => ({}))
+    const reindex = body?.reindex === true
+
     const documents = await prisma.document.findMany({
       where: {
-        companyId: user.companyId,
+        ...(user.role === 'ADMIN' ? {} : { companyId: user.companyId }),
         status: 'ACTIVE',
-        chunks: { none: {} },
+        ...(reindex ? {} : { chunks: { none: {} } }),
       },
-      select: {
-        id: true,
-        name: true,
-        storagePath: true,
-      },
+      select: { id: true, name: true },
+      orderBy: { createdAt: 'asc' },
     })
 
     if (documents.length === 0) {
-      return NextResponse.json({ 
-        message: 'Todos los documentos ya están indexados.', 
-        indexed: 0 
-      })
+      return NextResponse.json({ message: 'Todos los documentos ya están indexados.', indexed: 0 })
     }
 
-    let totalIndexed = 0
-    const results: { name: string; chunks: number; error?: string }[] = []
+    let totalChunks = 0
+    const results: { name: string; chunks: number; status: string; error?: string }[] = []
 
+    // De a uno: la API de embeddings tiene límite de solicitudes por minuto
     for (const doc of documents) {
       try {
-        // Descargar PDF
-        const { data: fileData, error: dlError } = await supabaseAdmin.storage
-          .from(BUCKET)
-          .download(doc.storagePath)
-
-        if (dlError || !fileData) {
-          results.push({ name: doc.name, chunks: 0, error: 'No se pudo descargar' })
-          continue
-        }
-
-        // Extraer texto
-        const buffer = Buffer.from(await fileData.arrayBuffer())
-        // @ts-ignore — pdf-parse v1 uses CommonJS default export
-        const pdfParse = (await import('pdf-parse')).default
-        const parsed = await pdfParse(buffer)
-
-        if (!parsed.text || parsed.text.trim().length < 50) {
-          results.push({ name: doc.name, chunks: 0, error: 'Sin texto extraíble' })
-          continue
-        }
-
-        // Indexar
-        const chunksCreated = await indexDocument(doc.id, parsed.text)
-        totalIndexed += chunksCreated
-        results.push({ name: doc.name, chunks: chunksCreated })
+        const outcome = await indexDocumentFromStorage(doc.id)
+        const chunks = outcome.status === 'indexed' ? outcome.chunks : 0
+        totalChunks += chunks
+        results.push({
+          name: doc.name,
+          chunks,
+          status: outcome.status === 'indexed' ? 'indexado' : `omitido (${outcome.reason})`,
+        })
       } catch (err) {
         console.error(`[RAG Index] Error processing ${doc.name}:`, err)
-        results.push({ name: doc.name, chunks: 0, error: String(err) })
+        results.push({
+          name: doc.name,
+          chunks: 0,
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
-
-      // Pausa entre documentos para respetar rate limits
-      await new Promise(r => setTimeout(r, 1000))
     }
 
-    return NextResponse.json({ 
-      message: `Indexación completada. ${totalIndexed} chunks creados.`,
-      indexed: totalIndexed,
+    return NextResponse.json({
+      message: `Indexación completada: ${totalChunks} fragmentos en ${results.filter((r) => r.chunks > 0).length} de ${documents.length} documentos.`,
+      indexed: totalChunks,
       details: results,
     })
   } catch (error) {
