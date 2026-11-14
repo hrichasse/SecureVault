@@ -77,7 +77,7 @@ Alertas (procesamiento del flujo, sin consultar la base):
 
 | Alerta | Regla |
 |---|---|
-| **Posible fuga de información** (`EXFILTRACION`) | un mismo usuario ve o descarga **5 o más documentos ALTO/CRÍTICO** en menos de 60 s |
+| **Posible fuga de información** (`EXFILTRACION`) | un mismo usuario ve o descarga **6 o más documentos ALTO/CRÍTICO en menos de 5 s** (con el uso normal un usuario ve unos 5 por minuto, por eso la ventana es corta) |
 | **Incidente crítico** (`INCIDENTE_CRITICO`) | se reporta un incidente de prioridad CRÍTICA |
 
 El simulador provoca una ráfaga sospechosa cada 45 s para ver la primera alerta en vivo.

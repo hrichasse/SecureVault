@@ -77,7 +77,7 @@ function render() {
   out.push(`${BOLD}Alertas${RESET}`)
   if (s.alerts.length === 0) out.push(`  ${DIM}sin alertas${RESET}`)
   for (const a of s.alerts.slice(0, 5)) {
-    out.push(`  ${RED}⚠ ${a.kind}${RESET} ${DIM}${a.detectedAt.slice(11, 19)}${RESET} ${a.companyName}: ${a.message}`)
+    out.push(`  ${RED}⚠ ${a.kind}${RESET} ${DIM}${time(new Date(a.detectedAt))}${RESET} ${a.companyName}: ${a.message}`)
   }
   out.push('')
 
@@ -85,7 +85,7 @@ function render() {
   for (const e of s.recent.slice(0, 8)) {
     const level = e.confidentialityLevel ? `${LEVEL_COLOR[e.confidentialityLevel]}${e.confidentialityLevel.padEnd(7)}${RESET}` : ' '.repeat(7)
     out.push(
-      `  ${DIM}${e.occurredAt.slice(11, 19)} ${(placement.get(e.id) ?? '').padEnd(9)}${RESET} ${EVENT_LABELS[e.type].padEnd(26)} ${level} ${e.companyName}${e.documentName ? ` · ${e.documentName}` : ''}`
+      `  ${DIM}${time(new Date(e.occurredAt))} ${(placement.get(e.id) ?? '').padEnd(9)}${RESET} ${EVENT_LABELS[e.type].padEnd(26)} ${level} ${e.companyName}${e.documentName ? ` · ${e.documentName}` : ''}`
     )
   }
   out.push('')

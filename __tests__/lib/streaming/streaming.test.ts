@@ -114,6 +114,36 @@ describe('métricas en tiempo real', () => {
     expect(m.snapshot(t0 + 2000).alerts).toHaveLength(1)
   })
 
+  it('con la configuración por defecto, la ráfaga del simulador dispara exactamente una alerta', () => {
+    const m = new MetricsWindow()
+    const burst = createSimulator(seeded(5)).burst(8)
+    const raised = burst.flatMap((e, i) => m.add(e, t0 + i * 250))
+    expect(raised.map((a) => a.kind)).toEqual(['EXFILTRACION'])
+  })
+
+  it('30 minutos de tráfico normal del simulador (4 ev/s) no dan falsas alarmas de fuga', () => {
+    const m = new MetricsWindow()
+    const sim = createSimulator(seeded(11))
+    let falsas = 0
+    for (let i = 0; i < 4 * 60 * 30; i++) {
+      falsas += m.add(sim.next(), t0 + i * 250).filter((a) => a.kind === 'EXFILTRACION').length
+    }
+    expect(falsas).toBe(0)
+  })
+
+  it('el uso normal (5 documentos sensibles repartidos en 30 s) no es una fuga', () => {
+    const m = new MetricsWindow({ exfiltrationThreshold: 5, exfiltrationWindowSeconds: 10 })
+    for (let i = 0; i < 5; i++) m.add(view('u1', 'CRITICO', i), t0 + i * 6_000)
+    expect(m.snapshot(t0 + 30_000).alerts).toHaveLength(0)
+  })
+
+  it('la serie trae la marca de tiempo de cada segundo (el navegador la muestra en hora local)', () => {
+    const m = new MetricsWindow({ windowSeconds: 60 })
+    const s = m.snapshot(t0)
+    expect(s.series[59].t).toBe(Math.floor(t0 / 1000) * 1000)
+    expect(s.series[0].t).toBe(s.series[59].t - 59_000)
+  })
+
   it('las vistas de documentos BAJO o de distintos usuarios no disparan la alerta', () => {
     const m = new MetricsWindow({ exfiltrationThreshold: 3 })
     for (let i = 0; i < 6; i++) m.add(view('u1', 'BAJO', i), t0 + i)

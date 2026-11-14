@@ -105,7 +105,7 @@ const WEIGHTS: [BusinessEventType, number][] = [
   ['VERIFY_DOCUMENT', 4],
   ['CERTIFY_DOCUMENT', 4],
   ['REJECT_REQUEST', 3],
-  ['CREATE_INCIDENT', 3],
+  ['CREATE_INCIDENT', 1],
   ['LOGOUT', 3],
   ['CLOSE_INCIDENT', 2],
 ]

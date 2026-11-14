@@ -25,6 +25,9 @@ const tooltipStyle = {
   color: 'hsl(var(--card-foreground))',
 }
 
+/** Hora local (Chile) hh:mm:ss */
+const clock = (value: string | number) => new Date(value).toLocaleTimeString('es-CL', { hour12: false })
+
 const ALERT_LABEL = { EXFILTRACION: 'Posible fuga de información', INCIDENTE_CRITICO: 'Incidente crítico' } as const
 
 export function StreamingClient() {
@@ -143,7 +146,7 @@ function Dashboard({ snap, stale = false }: { snap: FeedSnapshot; stale?: boolea
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard title="Eventos por segundo" value={m.eventsPerSecond.toFixed(1)} subtitle="promedio últimos 10 s" icon={Gauge} />
         <StatCard title="Últimos 60 s" value={m.windowCount} subtitle={`app ${m.bySource.app} · simulador ${m.bySource.simulator}`} icon={Activity} />
-        <StatCard title="Recibidos" value={m.totalReceived} subtitle="desde que se abrió el panel" icon={Layers} />
+        <StatCard title="Recibidos" value={m.totalReceived} subtitle="desde que arrancó el consumidor" icon={Layers} />
         <StatCard title="Alertas" value={m.alerts.length} subtitle="detectadas en el flujo" icon={AlertTriangle} />
       </div>
 
@@ -154,13 +157,13 @@ function Dashboard({ snap, stale = false }: { snap: FeedSnapshot; stale?: boolea
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={m.series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
               <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="second" tick={{ fontSize: 11, fill: MUTED }} interval={14} tickLine={false} axisLine={false} />
+              <XAxis dataKey="t" tickFormatter={clock} tick={{ fontSize: 11, fill: MUTED }} interval={14} tickLine={false} axisLine={false} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: MUTED }} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 cursor={{ stroke: MUTED, strokeDasharray: '3 3' }}
                 formatter={(value) => [value, 'eventos']}
-                labelFormatter={(label) => `Segundo ${label}`}
+                labelFormatter={(label) => clock(label as number)}
               />
               <Area type="monotone" dataKey="count" stroke={PRIMARY} strokeWidth={2} fill={PRIMARY} fillOpacity={0.15} isAnimationActive={false} />
             </AreaChart>
@@ -245,7 +248,7 @@ function Dashboard({ snap, stale = false }: { snap: FeedSnapshot; stale?: boolea
                   </p>
                   <p className="text-muted-foreground">{a.message}</p>
                 </div>
-                <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{a.detectedAt.slice(11, 19)}</span>
+                <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{clock(a.detectedAt)}</span>
               </li>
             ))}
           </ul>
@@ -286,7 +289,7 @@ function Dashboard({ snap, stale = false }: { snap: FeedSnapshot; stale?: boolea
               )}
               {m.recent.map((e) => (
                 <tr key={e.id} className="border-b border-border last:border-0">
-                  <td className="px-5 py-2 tabular-nums text-muted-foreground">{e.occurredAt.slice(11, 19)}</td>
+                  <td className="px-5 py-2 tabular-nums text-muted-foreground">{clock(e.occurredAt)}</td>
                   <td className="px-3 py-2 text-foreground whitespace-nowrap">{EVENT_LABELS[e.type]}</td>
                   <td className="px-3 py-2">{e.confidentialityLevel ? <ConfidentialityBadge level={e.confidentialityLevel} size="sm" /> : <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-3 py-2 text-foreground whitespace-nowrap">{e.companyName}</td>

@@ -8,8 +8,9 @@
  *   - alertas de seguridad detectadas sobre el flujo
  *
  * Reglas de alerta (procesamiento de flujo, no consultas a la BD):
- *   EXFILTRACION       un mismo usuario ve/descarga ≥ N documentos ALTO o CRÍTICO
- *                      dentro de la ventana → posible fuga de información
+ *   EXFILTRACION       un mismo usuario ve/descarga ≥ 6 documentos ALTO o CRÍTICO
+ *                      en 5 s → posible fuga de información (en 60 s no sirve:
+ *                      el uso normal ya llega a 5 por minuto)
  *   INCIDENTE_CRITICO  se reporta un incidente de prioridad CRÍTICA
  *
  * Lógica pura (sin Kafka): la usan el consumidor de terminal, el panel web y los tests.
@@ -36,8 +37,8 @@ export interface MetricsSnapshot {
   windowCount: number
   /** Promedio de los últimos 10 segundos */
   eventsPerSecond: number
-  /** Eventos por segundo, del más antiguo al más reciente (windowSeconds puntos) */
-  series: { second: string; count: number }[]
+  /** Eventos por segundo, del más antiguo al más reciente (windowSeconds puntos; t = epoch ms) */
+  series: { t: number; count: number }[]
   byType: { type: BusinessEventType; label: string; count: number }[]
   byLevel: Record<ConfidentialityLevel, number>
   topCompanies: { companyId: string; companyName: string; count: number }[]
@@ -55,6 +56,8 @@ export interface MetricsOptions {
   windowSeconds?: number
   /** Vistas de documentos ALTO/CRÍTICO de un mismo usuario que disparan EXFILTRACION */
   exfiltrationThreshold?: number
+  /** ...dentro de esta cantidad de segundos */
+  exfiltrationWindowSeconds?: number
   maxRecent?: number
   maxAlerts?: number
 }
@@ -65,6 +68,7 @@ export class MetricsWindow {
   readonly windowSeconds: number
   private readonly windowMs: number
   private readonly exfiltrationThreshold: number
+  readonly exfiltrationWindowSeconds: number
   private readonly maxRecent: number
   private readonly maxAlerts: number
 
@@ -78,7 +82,8 @@ export class MetricsWindow {
   constructor(options: MetricsOptions = {}) {
     this.windowSeconds = options.windowSeconds ?? 60
     this.windowMs = this.windowSeconds * 1000
-    this.exfiltrationThreshold = options.exfiltrationThreshold ?? 5
+    this.exfiltrationThreshold = options.exfiltrationThreshold ?? 6
+    this.exfiltrationWindowSeconds = Math.min(options.exfiltrationWindowSeconds ?? 5, this.windowSeconds)
     this.maxRecent = options.maxRecent ?? 15
     this.maxAlerts = options.maxAlerts ?? 10
   }
@@ -128,10 +133,7 @@ export class MetricsWindow {
       totalReceived: this.totalReceived,
       windowCount: this.entries.length,
       eventsPerSecond: Math.round((last10.reduce((a, b) => a + b, 0) / last10.length) * 10) / 10,
-      series: perSecond.map((count, i) => ({
-        second: new Date((firstSecond + i) * 1000).toISOString().slice(11, 19),
-        count,
-      })),
+      series: perSecond.map((count, i) => ({ t: (firstSecond + i) * 1000, count })),
       byType: Array.from(byType.entries())
         .map(([type, count]) => ({ type, label: EVENT_LABELS[type], count }))
         .sort((a, b) => b.count - a.count),
@@ -174,8 +176,10 @@ export class MetricsWindow {
       event.confidentialityLevel &&
       SENSITIVE.includes(event.confidentialityLevel)
     ) {
+      const since = now - this.exfiltrationWindowSeconds * 1000
       const views = this.entries.filter(
         (e) =>
+          e.receivedAt > since &&
           e.event.type === 'VIEW_DOCUMENT' &&
           e.event.userId === event.userId &&
           e.event.confidentialityLevel != null &&
@@ -187,7 +191,7 @@ export class MetricsWindow {
         raised.push({
           id: `exf-${event.userId}-${now}`,
           kind: 'EXFILTRACION',
-          message: `${event.userName ?? 'Un usuario'} vio ${views} documentos ALTO/CRÍTICO en menos de ${this.windowSeconds} s: posible fuga de información`,
+          message: `${event.userName ?? 'Un usuario'} vio ${views} documentos ALTO/CRÍTICO en menos de ${this.exfiltrationWindowSeconds} s: posible fuga de información`,
           detectedAt: new Date(now).toISOString(),
           companyName,
           userName: event.userName,
